@@ -154,7 +154,7 @@ type Channel struct {
 	UnreadCount        int       `json:"unread_count"`
 	UnreadCountDisplay int       `json:"unread_count_display"`
 
-	Latest []Message `json:"latest"`
+	Latest Message `json:"latest"`
 }
 
 type Topic struct {
@@ -177,7 +177,7 @@ type Group struct {
 	LastRead           Timestamp `json:"last_read"`
 	UnreadCount        int       `json:"unread_count"`
 	UnreadCountDisplay int       `json:"unread_count_display"`
-	Latest             []Message `json:"latest"`
+	Latest             Message   `json:"latest"`
 }
 
 type InstantMessage struct {
@@ -186,7 +186,7 @@ type InstantMessage struct {
 	User          string    `json:"user"`
 	Created       Timestamp `json:"created"`
 	IsUserDeleted bool      `json:"is_user_deleted"`
-	Latest        []Message `json:"latest"`
+	Latest        Message   `json:"latest"`
 }
 
 type Message struct {
