@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -192,8 +191,9 @@ type InstantMessage struct {
 type Message struct {
 	Type      Event     `json:"type"`
 	SubType   string    `json:"subtype,omitempty"`
-	Hidden    bool      `json:"hidden,omitemptyH"`
+	Hidden    bool      `json:"hidden,omitempty"`
 	Timestamp Timestamp `json:"ts"`
+	Channel   string    `json:"channel,omitempty"`
 	User      string    `json:"user"`
 	Text      string    `json:"text"`
 }
@@ -289,10 +289,6 @@ func (rtm *Client) Start() (*Session, error) {
 
 	if socketErr != nil {
 		return nil, socketErr
-	}
-
-	for event, listeners := range rtm.EventListeners {
-		fmt.Printf("Event: `%s` has %d listeners.\n", event, len(listeners))
 	}
 
 	go func() {
