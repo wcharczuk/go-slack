@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -304,6 +305,24 @@ func (rtm Client) SendMessage(m *Message) error {
 	}
 
 	return rtm.socketConnection.WriteJSON(m)
+}
+
+func (rtm Client) Say(channelId string, messageComponents ...interface{}) error {
+	if rtm.socketConnection == nil {
+		return exception.New("Connection is closed.")
+	}
+
+	m := &Message{Type: "message", Text: fmt.Sprint(messageComponents...), Channel: channelId}
+	return rtm.SendMessage(m)
+}
+
+func (rtm Client) Sayf(channelId, format string, messageComponents ...interface{}) error {
+	if rtm.socketConnection == nil {
+		return exception.New("Connection is closed.")
+	}
+
+	m := &Message{Type: "message", Text: fmt.Sprintf(format, messageComponents...), Channel: channelId}
+	return rtm.SendMessage(m)
 }
 
 func (rtm *Client) listenLoop() error {
