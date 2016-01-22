@@ -375,3 +375,66 @@ func (rtm *Client) Stop() error {
 	rtm.socketConnection.Close()
 	return nil
 }
+
+//--------------------------------------------------------------------------------
+// API METHODS
+//--------------------------------------------------------------------------------
+
+type channelsListResponse struct {
+	Ok       bool      `json:"ok"`
+	Error    string    `json:"error"`
+	Channels []Channel `json:"channels"`
+}
+
+func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
+	res := channelsListResponse{}
+	req := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/channels.list").
+		WithPostData("token", rtm.Token)
+
+	if excludeArchived {
+		req = req.WithPostData("exclude_archived", "1")
+	}
+
+	resErr := req.FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.Channels, nil
+}
+
+type usersListResponse struct {
+	Ok       bool   `json:"ok"`
+	Error    string `json:"error"`
+	Channels []User `json:"members"`
+}
+
+func (rtm *Client) UsersList() ([]User, error) {
+	res := usersListResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/users.list").
+		WithPostData("token", rtm.Token).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.Channels, nil
+}
