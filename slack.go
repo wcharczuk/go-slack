@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blendlabs/go-exception"
@@ -226,22 +227,89 @@ type Session struct {
 	Error    string           `json:"error,omitempty"`
 }
 
-type BasicResponse struct {
+type basicResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
 }
 
+type ChatMessage struct {
+	Token       string                  `json:"token"`
+	Channel     string                  `json:"channel"`
+	Text        string                  `json:"text"`
+	Username    *string                 `json:"username,omitempty"`
+	AsUser      *bool                   `json:"as_user,omitempty"`
+	Parse       *string                 `json:"parse,omitempty"`
+	LinkNames   *bool                   `json:"link_names,omitempty"`
+	UnfurlLinks *bool                   `json:"unfurl_links,omitempty"`
+	UnfurlMedia *bool                   `json:"unfurl_media,omitempty"`
+	IconUrl     *string                 `json:"icon_url,omitempty"`
+	IconEmoji   *string                 `json:"icon_emoji,omitempty"`
+	Attachments []ChatMessageAttachment `json:"attachments,omitempty"`
+}
+
+type ChatMessageAttachment struct {
+	Fallback      string  `json:"fallback"`
+	Color         *string `json:"color"`
+	Pretext       *string `json:"pretext,omitempty"`
+	AuthorName    *string `json:"author_name,omitempty"`
+	AuthorLink    *string `json:"author_link,omitempty"`
+	AuthorIcon    *string `json:"author_icon,omitempty"`
+	Title         *string `json:"title,omitempty"`
+	TitleLink     *string `json:"title_link,omitempty"`
+	Text          *string `json:"text,omitempty"`
+	Fields        []Field `json:"fields,omitempty"`
+	ImageUrl      *string `json:"image_url,omitempty"`
+	ImageThumbUrl *string `json:"thumb_url,omitempty"`
+}
+
+type Field struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}
+
 type Listener func(message *Message, client *Client)
 
+// --------------------------------------------------------------------------------
+// Connect(token string) is the main slack entry point.
+// It returns a `*Client`, which is the root struct for interacting with slack.
+// Register "Listeners" to hook into incoming messages and filter out ones you
+// dont' care about.
+// --------------------------------------------------------------------------------
+
 func Connect(token string) *Client {
-	return &Client{Token: token, EventListeners: map[Event][]Listener{}}
+	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: sync.Mutex{}}
+	c.Listen(EVENT_CHANNEL_JOINED, c.handleChannelJoined)
+	c.Listen(EVENT_CHANNEL_DELETED, c.handleChannelDeleted)
+	c.Listen(EVENT_CHANNEL_UNARCHIVE, c.handleChannelUnarchive)
+	c.Listen(EVENT_CHANNEL_LEFT, c.handleChannelLeft)
+
+	go func() { //fetch the (initial) channel list asyncronously
+		c.activeLock.Lock()
+		defer c.activeLock.Unlock()
+
+		channels, chanelsErr := c.ChannelsList(true) //excludeArchived == true
+		if chanelsErr != nil {
+			return
+		}
+
+		for x := 0; x < len(channels); x++ {
+			channel := channels[x]
+			if channel.IsMember && !channel.IsArchived {
+				c.ActiveChannels = append(c.ActiveChannels, channel.Id)
+			}
+		}
+	}()
+
+	return c
 }
 
 type Client struct {
 	Token          string
 	EventListeners map[Event][]Listener
+	ActiveChannels []string
 
-	allListeners     []Listener
+	activeLock       sync.Mutex
 	socketConnection *websocket.Conn
 }
 
@@ -251,10 +319,6 @@ func (rtm *Client) Listen(event Event, handler Listener) {
 	} else {
 		rtm.EventListeners[event] = []Listener{handler}
 	}
-}
-
-func (rtm *Client) ListenAll(handler Listener) {
-	rtm.allListeners = append(rtm.allListeners, handler)
 }
 
 func (rtm *Client) StopListening(event Event) {
@@ -299,6 +363,19 @@ func (rtm *Client) Start() (*Session, error) {
 	return &res, nil
 }
 
+func (rtm *Client) Stop() error {
+	if rtm.socketConnection == nil {
+		return nil
+	}
+
+	closeErr := rtm.socketConnection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if closeErr != nil {
+		return closeErr
+	}
+	rtm.socketConnection.Close()
+	return nil
+}
+
 func (rtm Client) SendMessage(m *Message) error {
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
@@ -324,6 +401,10 @@ func (rtm Client) Sayf(channelId, format string, messageComponents ...interface{
 	m := &Message{Type: "message", Text: fmt.Sprintf(format, messageComponents...), Channel: channelId}
 	return rtm.SendMessage(m)
 }
+
+//--------------------------------------------------------------------------------
+// INTERNAL METHODS
+//--------------------------------------------------------------------------------
 
 func (rtm *Client) listenLoop() error {
 	for {
@@ -354,26 +435,48 @@ func (rtm *Client) dispatch(m *Message) {
 			}()
 		}
 	}
+}
 
-	for x := 0; x < len(rtm.allListeners); x++ {
-		listener := rtm.allListeners[x]
-		go func() {
-			listener(m, rtm)
-		}()
+func (rtm *Client) handleChannelJoined(message *Message, client *Client) {
+	rtm.activeLock.Lock()
+	defer rtm.activeLock.Unlock()
+
+	rtm.ActiveChannels = append(rtm.ActiveChannels, message.Channel)
+}
+
+func (rtm *Client) handleChannelUnarchive(message *Message, client *Client) {
+	rtm.activeLock.Lock()
+	defer rtm.activeLock.Unlock()
+
+	channel, channelErr := rtm.ChannelsInfo(message.Channel)
+	if channelErr != nil {
+		return
+	}
+	if channel.IsMember {
+		rtm.ActiveChannels = append(rtm.ActiveChannels, message.Channel)
 	}
 }
 
-func (rtm *Client) Stop() error {
-	if rtm.socketConnection == nil {
-		return nil
-	}
+func (rtm *Client) handleChannelLeft(message *Message, client *Client) {
+	rtm.removeActiveChannel(message.Channel)
+}
 
-	closeErr := rtm.socketConnection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	if closeErr != nil {
-		return closeErr
+func (rtm *Client) handleChannelDeleted(message *Message, client *Client) {
+	rtm.removeActiveChannel(message.Channel)
+}
+
+func (rtm *Client) removeActiveChannel(channelId string) {
+	rtm.activeLock.Lock()
+	defer rtm.activeLock.Unlock()
+
+	currentChannels := []string{}
+	for x := 0; x < len(rtm.ActiveChannels); x++ {
+		currentChannelId := rtm.ActiveChannels[x]
+		if channelId != currentChannelId {
+			currentChannels = append(currentChannels, currentChannelId)
+		}
 	}
-	rtm.socketConnection.Close()
-	return nil
+	rtm.ActiveChannels = currentChannels
 }
 
 //--------------------------------------------------------------------------------
@@ -412,10 +515,84 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 	return res.Channels, nil
 }
 
+type channelsInfoResponse struct {
+	Ok      bool     `json:"ok"`
+	Error   string   `json:"error"`
+	Channel *Channel `json:"channel"`
+}
+
+func (rtm *Client) ChannelsInfo(channelId string) (*Channel, error) {
+	res := channelsInfoResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/channels.info").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelId).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.Channel, nil
+}
+
+func (rtm *Client) ChannelsSetTopic(channelId, topic string) error {
+	res := basicResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/channels.leave").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelId).
+		WithPostData("topic", topic).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+
+	return nil
+}
+
+func (rtm *Client) ChannelsSetPurpose(channelId, purpose string) error {
+	res := basicResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/channels.leave").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelId).
+		WithPostData("purpose", purpose).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+
+	return nil
+}
+
 type usersListResponse struct {
-	Ok       bool   `json:"ok"`
-	Error    string `json:"error"`
-	Channels []User `json:"members"`
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+	Users []User `json:"members"`
 }
 
 func (rtm *Client) UsersList() ([]User, error) {
@@ -436,5 +613,87 @@ func (rtm *Client) UsersList() ([]User, error) {
 		return nil, exception.New(res.Error)
 	}
 
-	return res.Channels, nil
+	return res.Users, nil
+}
+
+type usersInfoResponse struct {
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+	User  *User  `json:"users"`
+}
+
+func (rtm *Client) UsersInfo(userId string) (*User, error) {
+	res := usersInfoResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/users.info").
+		WithPostData("token", rtm.Token).
+		WithPostData("user", userId).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.User, nil
+}
+
+func NewChatMessage(channelId, text string) *ChatMessage {
+	return &ChatMessage{Channel: channelId, Text: text, Parse: OptionalString("full")}
+}
+
+type chatPostMessageResponse struct {
+	Ok        bool         `json:"ok"`
+	Timestamp Timestamp    `json:"timestamp"`
+	Message   *ChatMessage `json:"message"`
+	Error     string       `json:"error"`
+}
+
+func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessage, error) { //the response version of the message is returned for verification
+	m.Token = rtm.Token
+
+	res := chatPostMessageResponse{}
+	resErr := request.NewRequest().
+		AsPost().
+		WithScheme(API_SCHEME).
+		WithHost(API_ENDPOINT).
+		WithPath("api/chat.postMessage").
+		WithPostDataFromObject(m).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !util.IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.Message, nil
+}
+
+func OptionalBool(value bool) *bool {
+	return &value
+}
+
+func OptionalString(value string) *string {
+	return &value
+}
+
+func OptionalInt32(value int32) *int32 {
+	return &value
+}
+
+func OptionalInt64(value int64) *int64 {
+	return &value
+}
+
+func OptionalTimestamp(value time.Time) *time.Time {
+	return &value
 }
