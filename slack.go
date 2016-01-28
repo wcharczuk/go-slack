@@ -283,24 +283,6 @@ func Connect(token string) *Client {
 	c.Listen(EVENT_CHANNEL_DELETED, c.handleChannelDeleted)
 	c.Listen(EVENT_CHANNEL_UNARCHIVE, c.handleChannelUnarchive)
 	c.Listen(EVENT_CHANNEL_LEFT, c.handleChannelLeft)
-
-	go func() { //fetch the (initial) channel list asyncronously
-		c.activeLock.Lock()
-		defer c.activeLock.Unlock()
-
-		channels, chanelsErr := c.ChannelsList(true) //excludeArchived == true
-		if chanelsErr != nil {
-			return
-		}
-
-		for x := 0; x < len(channels); x++ {
-			channel := channels[x]
-			if channel.IsMember && !channel.IsArchived {
-				c.ActiveChannels = append(c.ActiveChannels, channel.Id)
-			}
-		}
-	}()
-
 	return c
 }
 
@@ -355,6 +337,23 @@ func (rtm *Client) Start() (*Session, error) {
 	if socketErr != nil {
 		return nil, socketErr
 	}
+
+	go func() { //fetch the (initial) channel list asyncronously
+		rtm.activeLock.Lock()
+		defer rtm.activeLock.Unlock()
+
+		channels, chanelsErr := rtm.ChannelsList(true) //excludeArchived == true
+		if chanelsErr != nil {
+			return
+		}
+
+		for x := 0; x < len(channels); x++ {
+			channel := channels[x]
+			if channel.IsMember && !channel.IsArchived {
+				rtm.ActiveChannels = append(rtm.ActiveChannels, channel.Id)
+			}
+		}
+	}()
 
 	go func() {
 		rtm.listenLoop()
