@@ -14,33 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Timestamp time.Time
-
-func ParseTimestamp(strValue string) *Timestamp {
-	if integerValue, integerErr := strconv.ParseInt(strValue, 10, 64); integerErr == nil {
-		t := Timestamp(time.Unix(integerValue, 0))
-		return &t
-	}
-	if _, floatErr := strconv.ParseFloat(strValue, 64); floatErr == nil {
-		components := strings.Split(strValue, ".")
-		if integerValue, integerErr := strconv.ParseInt(components[0], 10, 64); integerErr == nil {
-			t := Timestamp(time.Unix(integerValue, 0))
-			return &t
-		}
-	}
-	return nil
-}
-
-func (t *Timestamp) UnmarshalJSON(data []byte) error {
-	strValue := string(data)
-	t = ParseTimestamp(strValue)
-	return nil
-}
-
-func (t Timestamp) DateTime() time.Time {
-	return time.Time(t)
-}
-
 type Event string
 
 const (
@@ -107,6 +80,18 @@ const (
 	EVENT_BOT_CHANGED             Event = "bot_changed"
 	EVENT_ACCOUNTS_CHANGED        Event = "accounts_changed"
 	EVENT_TEAM_MIGRATION_STARTED  Event = "team_migration_started"
+
+	EVENT_SUBTYPE_BOT_MESSAGE       Event = "bot_message"
+	EVENT_SUBTYPE_ME_MESSAGE        Event = "me_message"
+	EVENT_SUBTYPE_MESSAGE_CHANGED   Event = "message_changed"
+	EVENT_SUBTYPE_MESSAGE_DELETED   Event = "message_deleted"
+	EVENT_SUBTYPE_CHANNEL_JOIN      Event = "channel_join"
+	EVENT_SUBTYPE_CHANNEL_LEAVE     Event = "channel_leave"
+	EVENT_SUBTYPE_CHANNEL_TOPIC     Event = "channel_topic"
+	EVENT_SUBTYPE_CHANNEL_PURPOSE   Event = "channel_purpose"
+	EVENT_SUBTYPE_CHANNEL_NAME      Event = "channel_name"
+	EVENT_SUBTYPE_CHANNEL_ARCHIVE   Event = "channel_archive"
+	EVENT_SUBTYPE_CHANNEL_UNARCHIVE Event = "channel_unarchive"
 )
 
 type User struct {
@@ -154,8 +139,7 @@ type Channel struct {
 	LastRead           Timestamp `json:"last_read"`
 	UnreadCount        int       `json:"unread_count"`
 	UnreadCountDisplay int       `json:"unread_count_display"`
-
-	Latest Message `json:"latest"`
+	Latest             Message   `json:"latest"`
 }
 
 type Topic struct {
@@ -190,14 +174,38 @@ type InstantMessage struct {
 	Latest        Message   `json:"latest"`
 }
 
+type Icon struct {
+	Image24  string `json:"image_24"`
+	Image32  string `json:"image_32"`
+	Image48  string `json:"image_48"`
+	Image72  string `json:"image_72"`
+	Image192 string `json:"image_192"`
+}
+
+type Bot struct {
+	Id    string `json:"id"`
+	Name  string `json:"name"`
+	Icons Icon   `json:"icons"`
+}
+
+type BareMessage struct {
+	Type Event `json:"type"`
+}
+
 type Message struct {
+	Id        string    `json:"id"`
 	Type      Event     `json:"type"`
 	SubType   string    `json:"subtype,omitempty"`
 	Hidden    bool      `json:"hidden,omitempty"`
-	Timestamp Timestamp `json:"ts"`
+	Timestamp Timestamp `json:"ts,omitempty"`
 	Channel   string    `json:"channel,omitempty"`
 	User      string    `json:"user"`
 	Text      string    `json:"text"`
+}
+
+type ChannelJoinedMessage struct {
+	Type    Event   `json:"type"`
+	Channel Channel `json:"channel,omitempty"`
 }
 
 type Self struct {
@@ -315,6 +323,8 @@ func (rtm *Client) Start() (*Session, error) {
 		WithHost(API_ENDPOINT).
 		WithPath("api/rtm.start").
 		WithPostData("token", rtm.Token).
+		WithPostData("no_unreads", "true").
+		WithPostData("mpim_aware", "true").
 		FetchJsonToObject(&res)
 
 	if resErr != nil {
@@ -401,6 +411,15 @@ func (rtm Client) Sayf(channelId, format string, messageComponents ...interface{
 	return rtm.SendMessage(m)
 }
 
+func (rtm *Client) Ping() error {
+	if rtm.socketConnection == nil {
+		return exception.New("Connection is closed.")
+	}
+
+	m := &Message{Id: util.UUID_v4().ToShortString(), Type: "ping"}
+	return rtm.SendMessage(m)
+}
+
 //--------------------------------------------------------------------------------
 // INTERNAL METHODS
 //--------------------------------------------------------------------------------
@@ -414,13 +433,24 @@ func (rtm *Client) listenLoop() error {
 		if err != nil {
 			return err
 		}
-		var m Message
-		jsonErr := util.DeserializeJson(&m, string(messageBytes))
-		if jsonErr != nil {
-			return jsonErr
-		}
 
-		rtm.dispatch(&m)
+		body := string(messageBytes)
+
+		var bm BareMessage
+		jsonErr := util.DeserializeJson(&bm, body)
+		if bm.Type == EVENT_CHANNEL_JOINED {
+			var cm ChannelJoinedMessage
+			jsonErr = util.DeserializeJson(&cm, body)
+			if jsonErr == nil {
+				rtm.dispatch(&Message{Type: EVENT_CHANNEL_JOINED, Channel: cm.Channel.Id})
+			}
+		} else {
+			var m Message
+			jsonErr = util.DeserializeJson(&m, body)
+			if jsonErr == nil {
+				rtm.dispatch(&m)
+			}
+		}
 	}
 	return nil
 }
@@ -439,7 +469,6 @@ func (rtm *Client) dispatch(m *Message) {
 func (rtm *Client) handleChannelJoined(message *Message, client *Client) {
 	rtm.activeLock.Lock()
 	defer rtm.activeLock.Unlock()
-
 	rtm.ActiveChannels = append(rtm.ActiveChannels, message.Channel)
 }
 
@@ -695,4 +724,31 @@ func OptionalInt64(value int64) *int64 {
 
 func OptionalTimestamp(value time.Time) *time.Time {
 	return &value
+}
+
+type Timestamp time.Time
+
+func ParseTimestamp(strValue string) *Timestamp {
+	if integerValue, integerErr := strconv.ParseInt(strValue, 10, 64); integerErr == nil {
+		t := Timestamp(time.Unix(integerValue, 0))
+		return &t
+	}
+	if _, floatErr := strconv.ParseFloat(strValue, 64); floatErr == nil {
+		components := strings.Split(strValue, ".")
+		if integerValue, integerErr := strconv.ParseInt(components[0], 10, 64); integerErr == nil {
+			t := Timestamp(time.Unix(integerValue, 0))
+			return &t
+		}
+	}
+	return nil
+}
+
+func (t *Timestamp) UnmarshalJSON(data []byte) error {
+	strValue := string(data)
+	t = ParseTimestamp(strValue)
+	return nil
+}
+
+func (t Timestamp) DateTime() time.Time {
+	return time.Time(t)
 }
