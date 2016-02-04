@@ -100,6 +100,7 @@ type User struct {
 	Deleted           bool         `json:"deletd"`
 	Color             string       `json:"color"`
 	Profile           *UserProfile `json:"profile"`
+	IsBot             bool         `json:"is_bot"`
 	IsAdmin           bool         `json:"is_admin"`
 	IsOwner           bool         `json:"is_owner"`
 	IsPrimaryOwner    bool         `json:"is_primary_owner"`
