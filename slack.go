@@ -14,88 +14,163 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Event is a type alias for string to differentiate Slack event types.
 type Event string
 
 const (
-	API_SCHEME   = "https"
-	API_ENDPOINT = "slack.com"
+	// APIScheme is the protocol used to communicate with slack.
+	APIScheme = "https"
+	// APIEndpoint is the host used to communicate with slack.
+	APIEndpoint = "slack.com"
 
-	EVENT_HELLO                   Event = "hello"
-	EVENT_MESSAGE                 Event = "message"
-	EVENT_USER_TYPING             Event = "user_typing"
-	EVENT_CHANNEL_MARKED          Event = "channel_marked"
-	EVENT_CHANNEL_JOINED          Event = "channel_joined"
-	EVENT_CHANNEL_LEFT            Event = "channel_left"
-	EVENT_CHANNEL_DELETED         Event = "channel_deleted"
-	EVENT_CHANNEL_RENAME          Event = "channel_rename"
-	EVENT_CHANNEL_ARCHIVE         Event = "channel_archive"
-	EVENT_CHANNEL_UNARCHIVE       Event = "channel_unarchive"
-	EVENT_CHANNEL_HISTORY_CHANGED Event = "channel_history_changed"
-	EVENT_DND_UPDATED             Event = "dnd_updated"
-	EVENT_DND_UPDATED_USER        Event = "dnd_updated_user"
-	EVENT_IM_CREATED              Event = "im_created"
-	EVENT_IM_OPEN                 Event = "im_open"
-	EVENT_IM_CLOSE                Event = "im_close"
-	EVENT_IM_MARKED               Event = "im_marked"
-	EVENT_IM_HISTORY_CHANGED      Event = "im_history_changed"
-	EVENT_GROUP_JOINED            Event = "group_joined"
-	EVENT_GROUP_LEFT              Event = "group_left"
-	EVENT_GROUP_OPEN              Event = "group_open"
-	EVENT_GROUP_CLOSE             Event = "group_close"
-	EVENT_GROUP_ARCHIVE           Event = "group_archive"
-	EVENT_GROUP_UNARCHIVE         Event = "group_unarchive"
-	EVENT_GROUP_RENAME            Event = "group_rename"
-	EVENT_GROUP_MARKED            Event = "group_marked"
-	EVENT_GROUP_HISTORY_CHANGED   Event = "group_history_changed"
-	EVENT_FILE_CREATED            Event = "file_created"
-	EVENT_FILE_SHARED             Event = "file_shared"
-	EVENT_FILE_UNSHARED           Event = "file_unshared"
-	EVENT_FILE_PUBLIC             Event = "file_public"
-	EVENT_FILE_PRIVATE            Event = "file_private"
-	EVENT_FILE_CHANGE             Event = "file_change"
-	EVENT_FILE_DELETED            Event = "file_deleted"
-	EVENT_FILE_COMMENT_ADDED      Event = "file_comment_added"
-	EVENT_FILE_COMMENT_EDITED     Event = "file_comment_edited"
-	EVENT_FILE_COMMENT_DELETED    Event = "file_comment_deleted"
-	EVENT_PIN_ADDED               Event = "pin_added"
-	EVENT_PIN_REMOVED             Event = "pin_removed"
-	EVENT_PRESENCE_CHANGE         Event = "presence_change"
-	EVENT_MANUAL_PRESENCE_CHANGE  Event = "manual_presence_change"
-	EVENT_PREF_CHANGE             Event = "pref_change"
-	EVENT_USER_CHANGE             Event = "user_change"
-	EVENT_TEAM_JOIN               Event = "team_join"
-	EVENT_STAR_ADDED              Event = "star_added"
-	EVENT_STAR_REMOVED            Event = "star_removed"
-	EVENT_REACTION_ADDED          Event = "reaction_added"
-	EVENT_REACTION_REMOVED        Event = "reaction_removed"
-	EVENT_EMOJI_CHANGED           Event = "emoji_changed"
-	EVENT_COMMANDS_CHANGED        Event = "commands_changed"
-	EVENT_TEAM_PLAN_CHANGED       Event = "team_plan_changed"
-	EVENT_TEAM_PREF_CHANGED       Event = "team_pref_changed"
-	EVENT_EMAIL_DOMAIN_CHANGED    Event = "email_domain_changed"
-	EVENT_TEAM_PROFILE_CHANGE     Event = "team_profile_change"
-	EVENT_TEAM_PROFILE_DELETE     Event = "team_profile_delete"
-	EVENT_TEAM_PROFILE_REORDER    Event = "team_profile_reorder"
-	EVENT_BOT_ADDED               Event = "bot_added"
-	EVENT_BOT_CHANGED             Event = "bot_changed"
-	EVENT_ACCOUNTS_CHANGED        Event = "accounts_changed"
-	EVENT_TEAM_MIGRATION_STARTED  Event = "team_migration_started"
+	// EventHello is an enumerated event.
+	EventHello Event = "hello"
+	// EventMessage is an enumerated event.
+	EventMessage Event = "message"
+	// EventUserTyping is an enumerated event.
+	EventUserTyping Event = "user_typing"
+	// EventChannelMarked is an enumerated event.
+	EventChannelMarked Event = "channel_marked"
+	// EventChannelJoined is an enumerated event.
+	EventChannelJoined Event = "channel_joined"
+	// EventChannelLeft is an enumerated event.
+	EventChannelLeft Event = "channel_left"
+	// EventChannelDeleted is an enumerated event.
+	EventChannelDeleted Event = "channel_deleted"
+	// EventChannelRename is an enumerated event.
+	EventChannelRename Event = "channel_rename"
+	// EventChannelArchive is an enumerated event.
+	EventChannelArchive Event = "channel_archive"
+	// EventChannelUnArchive is an enumerated event.
+	EventChannelUnArchive Event = "channel_unarchive"
+	// EventChannelHistoryChanged is an enumerated event.
+	EventChannelHistoryChanged Event = "channel_history_changed"
+	// EventDNDUpdated is an enumerated event.
+	EventDNDUpdated Event = "dnd_updated"
+	// EventDNDUpdatedUser is an enumerated event.
+	EventDNDUpdatedUser Event = "dnd_updated_user"
+	// EventIMCreated is an enumerated event.
+	EventIMCreated Event = "im_created"
+	// EventImOpen is an enumerated event.
+	EventImOpen Event = "im_open"
+	// EventImClose is an enumerated event.
+	EventImClose Event = "im_close"
+	// EventImMarked is an enumerated event.
+	EventImMarked Event = "im_marked"
+	// EventImHistoryChanged is an enumerated event.
+	EventImHistoryChanged Event = "im_history_changed"
+	// EventGroupJoined is an enumerated event.
+	EventGroupJoined Event = "group_joined"
+	// EventGroupLeft is an enumerated event.
+	EventGroupLeft Event = "group_left"
+	// EventGroupOpen is an enumerated event.
+	EventGroupOpen Event = "group_open"
+	// EventGroupClose is an enumerated event.
+	EventGroupClose Event = "group_close"
+	// EventGroupArchive is an enumerated event.
+	EventGroupArchive Event = "group_archive"
+	// EventGroupUnarchive is an enumerated event.
+	EventGroupUnarchive Event = "group_unarchive"
+	// EventGroupRename is an enumerated event.
+	EventGroupRename Event = "group_rename"
+	// EventGroupMarked is an enumerated event.
+	EventGroupMarked Event = "group_marked"
+	// EventGroupHistoryChanged is an enumerated event.
+	EventGroupHistoryChanged Event = "group_history_changed"
+	// EventFileCreated is an enumerated event.
+	EventFileCreated Event = "file_created"
+	// EventFileShared is an enumerated event.
+	EventFileShared Event = "file_shared"
+	// EventFileUnshared is an enumerated event.
+	EventFileUnshared Event = "file_unshared"
+	// EventFilePublic is an enumerated event.
+	EventFilePublic Event = "file_public"
+	// EventFilePrivate is an enumerated event.
+	EventFilePrivate Event = "file_private"
+	// EventFileChange is an enumerated event.
+	EventFileChange Event = "file_change"
+	// EventFileDeleted is an enumerated event.
+	EventFileDeleted Event = "file_deleted"
+	// EventFileCommentAdded is an enumerated event.
+	EventFileCommentAdded Event = "file_comment_added"
+	// EventFileCommentEdited is an enumerated event.
+	EventFileCommentEdited Event = "file_comment_edited"
+	// EventFileCommentDeleted is an enumerated event.
+	EventFileCommentDeleted Event = "file_comment_deleted"
+	// EventPinAdded is an enumerated event.
+	EventPinAdded Event = "pin_added"
+	// EventPinRemoved is an enumerated event.
+	EventPinRemoved Event = "pin_removed"
+	// EventPresenceChange is an enumerated event.
+	EventPresenceChange Event = "presence_change"
+	// EventManualPresenceChange is an enumerated event.
+	EventManualPresenceChange Event = "manual_presence_change"
+	// EventPrefChange is an enumerated event.
+	EventPrefChange Event = "pref_change"
+	// EventUserChange is an enumerated event.
+	EventUserChange Event = "user_change"
+	// EventTeamJoin is an enumerated event.
+	EventTeamJoin Event = "team_join"
+	// EventStarAdded is an enumerated event.
+	EventStarAdded Event = "star_added"
+	// EventStarRemoved is an enumerated event.
+	EventStarRemoved Event = "star_removed"
+	// EventReactionAdded is an enumerated event.
+	EventReactionAdded Event = "reaction_added"
+	// EventReactionRemoved is an enumerated event.
+	EventReactionRemoved Event = "reaction_removed"
+	// EventEmojiChanged is an enumerated event.
+	EventEmojiChanged Event = "emoji_changed"
+	// EventCommandsChanged is an enumerated event.
+	EventCommandsChanged Event = "commands_changed"
+	// EventTeamPlanChanged is an enumerated event.
+	EventTeamPlanChanged Event = "team_plan_changed"
+	// EventTeamPrefChanged is an enumerated event.
+	EventTeamPrefChanged Event = "team_pref_changed"
+	// EventEmailDomainChanged is an enumerated event.
+	EventEmailDomainChanged Event = "email_domain_changed"
+	// EventTeamProfileChange is an enumerated event.
+	EventTeamProfileChange Event = "team_profile_change"
+	// EventTeamProfileDelete is an enumerated event.
+	EventTeamProfileDelete Event = "team_profile_delete"
+	// EventTeamProfileReorder is an enumerated event.
+	EventTeamProfileReorder Event = "team_profile_reorder"
+	// EventBotAdded is an enumerated event.
+	EventBotAdded Event = "bot_added"
+	// EventBotChanged is an enumerated event.
+	EventBotChanged Event = "bot_changed"
+	// EventAccountsChanged is an enumerated event.
+	EventAccountsChanged Event = "accounts_changed"
+	// EventTeamMigrationStarted is an enumerated event.
+	EventTeamMigrationStarted Event = "team_migration_started"
 
-	EVENT_SUBTYPE_BOT_MESSAGE       Event = "bot_message"
-	EVENT_SUBTYPE_ME_MESSAGE        Event = "me_message"
-	EVENT_SUBTYPE_MESSAGE_CHANGED   Event = "message_changed"
-	EVENT_SUBTYPE_MESSAGE_DELETED   Event = "message_deleted"
-	EVENT_SUBTYPE_CHANNEL_JOIN      Event = "channel_join"
-	EVENT_SUBTYPE_CHANNEL_LEAVE     Event = "channel_leave"
-	EVENT_SUBTYPE_CHANNEL_TOPIC     Event = "channel_topic"
-	EVENT_SUBTYPE_CHANNEL_PURPOSE   Event = "channel_purpose"
-	EVENT_SUBTYPE_CHANNEL_NAME      Event = "channel_name"
-	EVENT_SUBTYPE_CHANNEL_ARCHIVE   Event = "channel_archive"
-	EVENT_SUBTYPE_CHANNEL_UNARCHIVE Event = "channel_unarchive"
+	// EventSubtypeBotMessage is an enumerated sub event.
+	EventSubtypeBotMessage Event = "bot_message"
+	// EventSubtypeMeMessage is an enumerated sub event.
+	EventSubtypeMeMessage Event = "me_message"
+	// EventSubtypeMessageChanged is an enumerated sub event.
+	EventSubtypeMessageChanged Event = "message_changed"
+	// EventSubtypeMessageDeleted is an enumerated sub event.
+	EventSubtypeMessageDeleted Event = "message_deleted"
+	// EventSubtypeChannelJoin is an enumerated sub event.
+	EventSubtypeChannelJoin Event = "channel_join"
+	// EventSubtypeChannelLeave is an enumerated sub event.
+	EventSubtypeChannelLeave Event = "channel_leave"
+	// EventSubtypeChannelTopic is an enumerated sub event.
+	EventSubtypeChannelTopic Event = "channel_topic"
+	// EventSubtypeChannelPurpose is an enumerated sub event.
+	EventSubtypeChannelPurpose Event = "channel_purpose"
+	// EventSubtypeChannelName is an enumerated sub event.
+	EventSubtypeChannelName Event = "channel_name"
+	// EventSubtypeChannelArchive is an enumerated sub event.
+	EventSubtypeChannelArchive Event = "channel_archive"
+	// EventSubtypeChannelUnarchive is an enumerated sub event.
+	EventSubtypeChannelUnarchive Event = "channel_unarchive"
 )
 
+// User is the struct that represents a Slack user.
 type User struct {
-	Id                string       `json:"id"`
+	ID                string       `json:"id"`
 	Name              string       `json:"name"`
 	Deleted           bool         `json:"deletd"`
 	Color             string       `json:"color"`
@@ -111,6 +186,7 @@ type User struct {
 	HasFiles          bool         `json:"has_files"`
 }
 
+// UserProfile represents additional information about a Slack user.
 type UserProfile struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -125,8 +201,9 @@ type UserProfile struct {
 	Image192  string `json:"image_192"`
 }
 
+// Channel is the struct that represents a Slack channel.
 type Channel struct {
-	Id                 string    `json:"id"`
+	ID                 string    `json:"id"`
 	Name               string    `json:"name"`
 	IsChannel          bool      `json:"is_channel"`
 	Created            Timestamp `json:"created"`
@@ -143,14 +220,16 @@ type Channel struct {
 	Latest             Message   `json:"latest"`
 }
 
+// Topic represents a Slack topic.
 type Topic struct {
 	Value   string    `json:"value"`
 	Creator string    `json:"creator"`
 	LastSet Timestamp `json:"last_set"`
 }
 
+// Group represents a Slack group.
 type Group struct {
-	Id                 string    `json:"id"`
+	ID                 string    `json:"id"`
 	Name               string    `json:"name"`
 	IsGroup            bool      `json:"is_group"`
 	Created            Timestamp `json:"created"`
@@ -166,8 +245,9 @@ type Group struct {
 	Latest             Message   `json:"latest"`
 }
 
+// InstantMessage represents a Slack instant message.
 type InstantMessage struct {
-	Id            string    `json:"id"`
+	ID            string    `json:"id"`
 	IsIM          bool      `json:"is_im"`
 	User          string    `json:"user"`
 	Created       Timestamp `json:"created"`
@@ -175,6 +255,7 @@ type InstantMessage struct {
 	Latest        Message   `json:"latest"`
 }
 
+// Icon represents a Slack icon.
 type Icon struct {
 	Image24  string `json:"image_24"`
 	Image32  string `json:"image_32"`
@@ -183,18 +264,21 @@ type Icon struct {
 	Image192 string `json:"image_192"`
 }
 
+// Bot represents a Slack bot.
 type Bot struct {
-	Id    string `json:"id"`
+	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Icons Icon   `json:"icons"`
 }
 
+// BareMessage is an intermediate type used to figure out what final type to deserialize a message as.
 type BareMessage struct {
 	Type Event `json:"type"`
 }
 
+// Message is a basic final message type that encapsulates the most commonly used fields.
 type Message struct {
-	Id        string    `json:"id"`
+	ID        string    `json:"id"`
 	Type      Event     `json:"type"`
 	SubType   string    `json:"subtype,omitempty"`
 	Hidden    bool      `json:"hidden,omitempty"`
@@ -204,26 +288,30 @@ type Message struct {
 	Text      string    `json:"text"`
 }
 
+// ChannelJoinedMessage is a final message type for the EventChannelJoined event type.
 type ChannelJoinedMessage struct {
 	Type    Event   `json:"type"`
 	Channel Channel `json:"channel,omitempty"`
 }
 
+// Self represents information about the bot itself.
 type Self struct {
-	Id             string    `json:"id"`
+	ID             string    `json:"id"`
 	Name           string    `json:"name"`
 	Created        Timestamp `json:"created"`
 	ManualPresense string    `json:"manual_presence"`
 }
 
+// Team represents information about a Slack team.
 type Team struct {
-	Id                string `json:"id"`
+	ID                string `json:"id"`
 	Name              string `json:"name"`
 	EmailDomain       string `json:"email_domain"`
 	MsgEditWindowMins int    `json:"msg_edit_window_mins"`
 	OverStorageLimit  bool   `json:"over_storage_limit"`
 }
 
+// Session represents information about a Slack session and is returned by APIStart.
 type Session struct {
 	OK       bool             `json:"ok"`
 	URL      string           `json:"url"`
@@ -236,11 +324,13 @@ type Session struct {
 	Error    string           `json:"error,omitempty"`
 }
 
+// basicResponse is a utility intermediate type.
 type basicResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
 }
 
+// ChatMessage is a struct that represents an outgoing chat message for the Slack chat message api.
 type ChatMessage struct {
 	Token       string                  `json:"token"`
 	Channel     string                  `json:"channel"`
@@ -251,11 +341,12 @@ type ChatMessage struct {
 	LinkNames   *bool                   `json:"link_names,omitempty"`
 	UnfurlLinks *bool                   `json:"unfurl_links,omitempty"`
 	UnfurlMedia *bool                   `json:"unfurl_media,omitempty"`
-	IconUrl     *string                 `json:"icon_url,omitempty"`
+	IconURL     *string                 `json:"icon_url,omitempty"`
 	IconEmoji   *string                 `json:"icon_emoji,omitempty"`
 	Attachments []ChatMessageAttachment `json:"attachments,omitempty"`
 }
 
+// ChatMessageAttachment is a struct that represents an attachment to a chat message for the Slack chat message api.
 type ChatMessageAttachment struct {
 	Fallback      string  `json:"fallback"`
 	Color         *string `json:"color"`
@@ -267,16 +358,18 @@ type ChatMessageAttachment struct {
 	TitleLink     *string `json:"title_link,omitempty"`
 	Text          *string `json:"text,omitempty"`
 	Fields        []Field `json:"fields,omitempty"`
-	ImageUrl      *string `json:"image_url,omitempty"`
-	ImageThumbUrl *string `json:"thumb_url,omitempty"`
+	ImageURL      *string `json:"image_url,omitempty"`
+	ImageThumbURL *string `json:"thumb_url,omitempty"`
 }
 
+// Field represents a field on a Slack ChatMessageAttachment.
 type Field struct {
 	Title string `json:"title"`
 	Value string `json:"value"`
 	Short bool   `json:"short"`
 }
 
+// Listener is a function that recieves messages from a client.
 type Listener func(message *Message, client *Client)
 
 // --------------------------------------------------------------------------------
@@ -286,24 +379,29 @@ type Listener func(message *Message, client *Client)
 // dont' care about.
 // --------------------------------------------------------------------------------
 
+// Connect creates a Client with a given token.
 func Connect(token string) *Client {
-	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: sync.Mutex{}}
-	c.Listen(EVENT_CHANNEL_JOINED, c.handleChannelJoined)
-	c.Listen(EVENT_CHANNEL_DELETED, c.handleChannelDeleted)
-	c.Listen(EVENT_CHANNEL_UNARCHIVE, c.handleChannelUnarchive)
-	c.Listen(EVENT_CHANNEL_LEFT, c.handleChannelLeft)
+	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: &sync.Mutex{}}
+	c.Listen(EventChannelJoined, c.handleChannelJoined)
+	c.Listen(EventChannelDeleted, c.handleChannelDeleted)
+	c.Listen(EventChannelUnArchive, c.handleChannelUnarchive)
+	c.Listen(EventChannelLeft, c.handleChannelLeft)
 	return c
 }
 
+// Client is the mechanism with which the package consumer interacts with Slack.
 type Client struct {
 	Token          string
 	EventListeners map[Event][]Listener
 	ActiveChannels []string
 
-	activeLock       sync.Mutex
+	activeLock       *sync.Mutex
 	socketConnection *websocket.Conn
 }
 
+// Listen attaches a new Listener to the given event.
+// There can be multiple listeners to an event.
+// If an event is already being listened for, calling Listen will add a new listener to that event.
 func (rtm *Client) Listen(event Event, handler Listener) {
 	if listeners, handlesEvent := rtm.EventListeners[event]; handlesEvent {
 		rtm.EventListeners[event] = append(listeners, handler)
@@ -312,16 +410,18 @@ func (rtm *Client) Listen(event Event, handler Listener) {
 	}
 }
 
+// StopListening removes all listeners for an event.
 func (rtm *Client) StopListening(event Event) {
 	delete(rtm.EventListeners, event)
 }
 
+// Start begins a session with Slack.
 func (rtm *Client) Start() (*Session, error) {
 	res := Session{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/rtm.start").
 		WithPostData("token", rtm.Token).
 		WithPostData("no_unreads", "true").
@@ -361,7 +461,7 @@ func (rtm *Client) Start() (*Session, error) {
 		for x := 0; x < len(channels); x++ {
 			channel := channels[x]
 			if channel.IsMember && !channel.IsArchived {
-				rtm.ActiveChannels = append(rtm.ActiveChannels, channel.Id)
+				rtm.ActiveChannels = append(rtm.ActiveChannels, channel.ID)
 			}
 		}
 	}()
@@ -373,6 +473,7 @@ func (rtm *Client) Start() (*Session, error) {
 	return &res, nil
 }
 
+// Stop closes the connection with Slack.
 func (rtm *Client) Stop() error {
 	if rtm.socketConnection == nil {
 		return nil
@@ -386,6 +487,7 @@ func (rtm *Client) Stop() error {
 	return nil
 }
 
+// SendMessage sends a basic message over the open web socket connection to slack.
 func (rtm Client) SendMessage(m *Message) error {
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
@@ -394,30 +496,34 @@ func (rtm Client) SendMessage(m *Message) error {
 	return rtm.socketConnection.WriteJSON(m)
 }
 
-func (rtm Client) Say(channelId string, messageComponents ...interface{}) error {
+// Say sends a basic message to a given channelID.
+func (rtm Client) Say(channelID string, messageComponents ...interface{}) error {
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
 
-	m := &Message{Type: "message", Text: fmt.Sprint(messageComponents...), Channel: channelId}
+	m := &Message{Type: "message", Text: fmt.Sprint(messageComponents...), Channel: channelID}
 	return rtm.SendMessage(m)
 }
 
-func (rtm Client) Sayf(channelId, format string, messageComponents ...interface{}) error {
+// Sayf is an overload that uses Printf style replacements for a basic message to a given channelID.
+func (rtm Client) Sayf(channelID, format string, messageComponents ...interface{}) error {
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
 
-	m := &Message{Type: "message", Text: fmt.Sprintf(format, messageComponents...), Channel: channelId}
+	m := &Message{Type: "message", Text: fmt.Sprintf(format, messageComponents...), Channel: channelID}
 	return rtm.SendMessage(m)
 }
 
+// Ping sends a special type of "ping" message to Slack to remind it to keep the connection open.
+// Currently unused internally by Slack.
 func (rtm *Client) Ping() error {
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
 
-	m := &Message{Id: util.UUID_v4().ToShortString(), Type: "ping"}
+	m := &Message{ID: util.UUID_v4().ToShortString(), Type: "ping"}
 	return rtm.SendMessage(m)
 }
 
@@ -439,11 +545,11 @@ func (rtm *Client) listenLoop() error {
 
 		var bm BareMessage
 		jsonErr := util.DeserializeJson(&bm, body)
-		if bm.Type == EVENT_CHANNEL_JOINED {
+		if bm.Type == EventChannelJoined {
 			var cm ChannelJoinedMessage
 			jsonErr = util.DeserializeJson(&cm, body)
 			if jsonErr == nil {
-				rtm.dispatch(&Message{Type: EVENT_CHANNEL_JOINED, Channel: cm.Channel.Id})
+				rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
 			}
 		} else {
 			var m Message
@@ -453,7 +559,6 @@ func (rtm *Client) listenLoop() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (rtm *Client) dispatch(m *Message) {
@@ -494,15 +599,15 @@ func (rtm *Client) handleChannelDeleted(message *Message, client *Client) {
 	rtm.removeActiveChannel(message.Channel)
 }
 
-func (rtm *Client) removeActiveChannel(channelId string) {
+func (rtm *Client) removeActiveChannel(channelID string) {
 	rtm.activeLock.Lock()
 	defer rtm.activeLock.Unlock()
 
 	currentChannels := []string{}
 	for x := 0; x < len(rtm.ActiveChannels); x++ {
-		currentChannelId := rtm.ActiveChannels[x]
-		if channelId != currentChannelId {
-			currentChannels = append(currentChannels, currentChannelId)
+		currentChannelID := rtm.ActiveChannels[x]
+		if channelID != currentChannelID {
+			currentChannels = append(currentChannels, currentChannelID)
 		}
 	}
 	rtm.ActiveChannels = currentChannels
@@ -518,12 +623,13 @@ type channelsListResponse struct {
 	Channels []Channel `json:"channels"`
 }
 
+// ChannelsList returns the list of channels available to the bot.
 func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 	res := channelsListResponse{}
 	req := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/channels.list").
 		WithPostData("token", rtm.Token)
 
@@ -550,15 +656,16 @@ type channelsInfoResponse struct {
 	Channel *Channel `json:"channel"`
 }
 
-func (rtm *Client) ChannelsInfo(channelId string) (*Channel, error) {
+// ChannelsInfo returns information about a given channelID.
+func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
 	res := channelsInfoResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/channels.info").
 		WithPostData("token", rtm.Token).
-		WithPostData("channel", channelId).
+		WithPostData("channel", channelID).
 		FetchJsonToObject(&res)
 
 	if resErr != nil {
@@ -572,15 +679,16 @@ func (rtm *Client) ChannelsInfo(channelId string) (*Channel, error) {
 	return res.Channel, nil
 }
 
-func (rtm *Client) ChannelsSetTopic(channelId, topic string) error {
+// ChannelsSetTopic sets the topic for a given Slack channel.
+func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 	res := basicResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/channels.leave").
 		WithPostData("token", rtm.Token).
-		WithPostData("channel", channelId).
+		WithPostData("channel", channelID).
 		WithPostData("topic", topic).
 		FetchJsonToObject(&res)
 
@@ -595,15 +703,16 @@ func (rtm *Client) ChannelsSetTopic(channelId, topic string) error {
 	return nil
 }
 
-func (rtm *Client) ChannelsSetPurpose(channelId, purpose string) error {
+// ChannelsSetPurpose sets the purpose for a given Slack channel.
+func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 	res := basicResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/channels.leave").
 		WithPostData("token", rtm.Token).
-		WithPostData("channel", channelId).
+		WithPostData("channel", channelID).
 		WithPostData("purpose", purpose).
 		FetchJsonToObject(&res)
 
@@ -624,12 +733,13 @@ type usersListResponse struct {
 	Users []User `json:"members"`
 }
 
+// UsersList returns all users for a given Slack organization.
 func (rtm *Client) UsersList() ([]User, error) {
 	res := usersListResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/users.list").
 		WithPostData("token", rtm.Token).
 		FetchJsonToObject(&res)
@@ -651,15 +761,16 @@ type usersInfoResponse struct {
 	User  *User  `json:"users"`
 }
 
-func (rtm *Client) UsersInfo(userId string) (*User, error) {
+// UsersInfo returns an User object for a given userID.
+func (rtm *Client) UsersInfo(userID string) (*User, error) {
 	res := usersInfoResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/users.info").
 		WithPostData("token", rtm.Token).
-		WithPostData("user", userId).
+		WithPostData("user", userID).
 		FetchJsonToObject(&res)
 
 	if resErr != nil {
@@ -673,8 +784,9 @@ func (rtm *Client) UsersInfo(userId string) (*User, error) {
 	return res.User, nil
 }
 
-func NewChatMessage(channelId, text string) *ChatMessage {
-	return &ChatMessage{Channel: channelId, Text: text, Parse: OptionalString("full")}
+// NewChatMessage instantiates a ChatMessage for use with ChatPostMessage.
+func NewChatMessage(channelID, text string) *ChatMessage {
+	return &ChatMessage{Channel: channelID, Text: text, Parse: util.OptionalString("full")}
 }
 
 type chatPostMessageResponse struct {
@@ -684,14 +796,15 @@ type chatPostMessageResponse struct {
 	Error     string       `json:"error"`
 }
 
+// ChatPostMessage posts a message to Slack using the chat api.
 func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessage, error) { //the response version of the message is returned for verification
 	m.Token = rtm.Token
 
 	res := chatPostMessageResponse{}
 	resErr := request.NewRequest().
 		AsPost().
-		WithScheme(API_SCHEME).
-		WithHost(API_ENDPOINT).
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
 		WithPath("api/chat.postMessage").
 		WithPostDataFromObject(m).
 		FetchJsonToObject(&res)
@@ -707,28 +820,10 @@ func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessage, error) { //the
 	return res.Message, nil
 }
 
-func OptionalBool(value bool) *bool {
-	return &value
-}
-
-func OptionalString(value string) *string {
-	return &value
-}
-
-func OptionalInt32(value int32) *int32 {
-	return &value
-}
-
-func OptionalInt64(value int64) *int64 {
-	return &value
-}
-
-func OptionalTimestamp(value time.Time) *time.Time {
-	return &value
-}
-
+// A Timestamp is a special time.Time alias that parses Slack timestamps better.
 type Timestamp time.Time
 
+// ParseTimestamp parses a given Slack timestamp.
 func ParseTimestamp(strValue string) *Timestamp {
 	if integerValue, integerErr := strconv.ParseInt(strValue, 10, 64); integerErr == nil {
 		t := Timestamp(time.Unix(integerValue, 0))
@@ -744,12 +839,14 @@ func ParseTimestamp(strValue string) *Timestamp {
 	return nil
 }
 
+// UnmarshalJSON implements json.Unmarshal for the Timestamp struct.
 func (t *Timestamp) UnmarshalJSON(data []byte) error {
 	strValue := string(data)
 	t = ParseTimestamp(strValue)
 	return nil
 }
 
+// DateTime returns a regular golang time.Time for the Timestamp instance.
 func (t Timestamp) DateTime() time.Time {
 	return time.Time(t)
 }
