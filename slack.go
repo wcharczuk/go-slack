@@ -1,6 +1,8 @@
 package slack
 
 import (
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -10,7 +12,6 @@ import (
 
 	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/go-request"
-	"github.com/blendlabs/go-util"
 	"github.com/gorilla/websocket"
 )
 
@@ -432,7 +433,7 @@ func (rtm *Client) Start() (*Session, error) {
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -523,7 +524,7 @@ func (rtm *Client) Ping() error {
 		return exception.New("Connection is closed.")
 	}
 
-	m := &Message{ID: util.UUID_v4().ToShortString(), Type: "ping"}
+	m := &Message{ID: UUIDv4().ToShortString(), Type: "ping"}
 	return rtm.SendMessage(m)
 }
 
@@ -541,19 +542,17 @@ func (rtm *Client) listenLoop() error {
 			return err
 		}
 
-		body := string(messageBytes)
-
 		var bm BareMessage
-		jsonErr := util.DeserializeJson(&bm, body)
+		jsonErr := DeserializeJSON(&bm, messageBytes)
 		if bm.Type == EventChannelJoined {
 			var cm ChannelJoinedMessage
-			jsonErr = util.DeserializeJson(&cm, body)
+			jsonErr = DeserializeJSON(&cm, messageBytes)
 			if jsonErr == nil {
 				rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
 			}
 		} else {
 			var m Message
-			jsonErr = util.DeserializeJson(&m, body)
+			jsonErr = DeserializeJSON(&m, messageBytes)
 			if jsonErr == nil {
 				rtm.dispatch(&m)
 			}
@@ -643,7 +642,7 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -672,7 +671,7 @@ func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -696,7 +695,7 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 		return resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return exception.New(res.Error)
 	}
 
@@ -720,7 +719,7 @@ func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 		return resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return exception.New(res.Error)
 	}
 
@@ -748,7 +747,7 @@ func (rtm *Client) UsersList() ([]User, error) {
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -777,7 +776,7 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -786,7 +785,7 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 
 // NewChatMessage instantiates a ChatMessage for use with ChatPostMessage.
 func NewChatMessage(channelID, text string) *ChatMessage {
-	return &ChatMessage{Channel: channelID, Text: text, Parse: util.OptionalString("full")}
+	return &ChatMessage{Channel: channelID, Text: text, Parse: OptionalString("full")}
 }
 
 type chatPostMessageResponse struct {
@@ -813,7 +812,7 @@ func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessage, error) { //the
 		return nil, resErr
 	}
 
-	if !util.IsEmpty(res.Error) {
+	if !IsEmpty(res.Error) {
 		return nil, exception.New(res.Error)
 	}
 
@@ -849,4 +848,93 @@ func (t *Timestamp) UnmarshalJSON(data []byte) error {
 // DateTime returns a regular golang time.Time for the Timestamp instance.
 func (t Timestamp) DateTime() time.Time {
 	return time.Time(t)
+}
+
+func OptionalUInt8(value uint8) *uint8 {
+	return &value
+}
+
+func OptionalUInt16(value uint16) *uint16 {
+	return &value
+}
+
+func OptionalUInt(value uint) *uint {
+	return &value
+}
+
+func OptionalUInt32(value uint32) *uint32 {
+	return &value
+}
+
+func OptionalUInt64(value uint64) *uint64 {
+	return &value
+}
+
+func OptionalInt16(value int16) *int16 {
+	return &value
+}
+
+func OptionalInt(value int) *int {
+	return &value
+}
+
+func OptionalInt32(value int32) *int32 {
+	return &value
+}
+
+func OptionalInt64(value int64) *int64 {
+	return &value
+}
+
+func OptionalFloat32(value float32) *float32 {
+	return &value
+}
+
+func OptionalFloat64(value float64) *float64 {
+	return &value
+}
+
+func OptionalString(value string) *string {
+	return &value
+}
+
+func OptionalTime(value time.Time) *time.Time {
+	return &value
+}
+
+func SerializeJSON(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func DeserializeJSON(v interface{}, d []byte) error {
+	return json.Unmarshal(d, v)
+}
+
+func IsEmpty(s string) bool {
+	return len(s) == 0
+}
+
+type UUID []byte
+
+func (uuid UUID) ToFullString() string {
+	b := []byte(uuid)
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+func (uuid UUID) ToShortString() string {
+	b := []byte(uuid)
+	return fmt.Sprintf("%x", b[:])
+}
+
+func (uuid UUID) Version() byte {
+	return uuid[6] >> 4
+}
+
+func UUIDv4() UUID {
+	uuid := make([]byte, 16)
+	rand.Read(uuid)
+	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
+	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
+	return uuid
 }
