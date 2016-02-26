@@ -854,6 +854,10 @@ func OptionalUInt8(value uint8) *uint8 {
 	return &value
 }
 
+func OptionalByte(value byte) *byte {
+	return &value
+}
+
 func OptionalUInt16(value uint16) *uint16 {
 	return &value
 }
@@ -895,6 +899,10 @@ func OptionalFloat64(value float64) *float64 {
 }
 
 func OptionalString(value string) *string {
+	return &value
+}
+
+func OptionalBool(value bool) *bool {
 	return &value
 }
 
