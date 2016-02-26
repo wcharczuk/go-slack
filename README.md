@@ -9,11 +9,11 @@ This is a very basic real time api client for slack. It abstracts away the detai
 import "github.com/wcharczuk/go-slack"
 ...
 
-client := slack.Connect(TOKEN())
-client.Listen(slack.EVENT_HELLO, func(m *slack.Message, c *slack.Client) {
+client := slack.Connect(os.Getenv("SLACK_TOKEN"))
+client.Listen(slack.EventHello, func(m *slack.Message, c *slack.Client) {
 	fmt.Println("connected")
 })
-client.Listen(slack.EVENT_MESSAGE, func(m *slack.Message, c *slack.Client) {
+client.Listen(slack.EventMessage, func(m *slack.Message, c *slack.Client) {
 	fmt.Prinln("message received!")
 })
 session, err := client.Start() //session has the current users list and channel list
