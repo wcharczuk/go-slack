@@ -543,16 +543,16 @@ func (rtm *Client) listenLoop() error {
 		}
 
 		var bm BareMessage
-		jsonErr := DeserializeJSON(&bm, messageBytes)
+		jsonErr := json.Unmarshal(messageBytes, &bm)
 		if bm.Type == EventChannelJoined {
 			var cm ChannelJoinedMessage
-			jsonErr = DeserializeJSON(&cm, messageBytes)
+			jsonErr = json.Unmarshal(messageBytes, &cm)
 			if jsonErr == nil {
 				rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
 			}
 		} else {
 			var m Message
-			jsonErr = DeserializeJSON(&m, messageBytes)
+			jsonErr = json.Unmarshal(messageBytes, &m)
 			if jsonErr == nil {
 				rtm.dispatch(&m)
 			}
@@ -908,14 +908,6 @@ func OptionalBool(value bool) *bool {
 
 func OptionalTime(value time.Time) *time.Time {
 	return &value
-}
-
-func SerializeJSON(v interface{}) ([]byte, error) {
-	return json.Marshal(v)
-}
-
-func DeserializeJSON(v interface{}, d []byte) error {
-	return json.Unmarshal(d, v)
 }
 
 func IsEmpty(s string) bool {
