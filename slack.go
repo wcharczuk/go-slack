@@ -1,12 +1,38 @@
+// Copyright 2016 Will Charczuk. Use of this source code is governed by a MIT-style license that can be found
+// in the LICENSE file.
+
+// Package slack is a event driven client for the popular Slack chat application.
+
+// A trivial example is:
+//  package main
+//  import (
+//      "fmt"
+//      "os"
+//      "github.com/wcharczuk/go-slack"
+//  )
+//
+//  func main() {
+//      client := slack.NewClient(os.Getenv("SLACK_TOKEN"))
+//      client.Listen(slack.EventHello, func(m *slack.Message, c *slack.Client) {
+//          fmt.Println("connected")
+//      })
+//      client.Listen(slack.EventMessage, func(m *slack.Message, c *slack.Client) {
+//          fmt.Prinln("message received!")
+//      })
+//      session, err := client.Connect() //session has the current users list and channel list
+//      if err != nil {
+//          fmt.Printf("%v\n", err)
+//          os.Exit(1)
+//      }
+//  }
+// The client has two phases of initialization, NewClient and Start.
+
 package slack
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +49,49 @@ const (
 	APIScheme = "https"
 	// APIEndpoint is the host used to communicate with slack.
 	APIEndpoint = "slack.com"
+
+	// ErrorNotAuthed : No authentication token provided.
+	ErrorNotAuthed = "not_authed"
+	// ErrorInvalidAuth : Invalid authentication token
+	ErrorInvalidAuth = "invalid_auth"
+	// ErrorAccountInactive : Authentication token is for a deleted user or team.
+	ErrorAccountInactive = "account_inactive"
+	// ErrorInvalidArrayArg : The method was passed a PHP-style array argument (e.g. with a name like foo[7]). These are never valid with the Slack API.
+	ErrorInvalidArrayArg = "invalid_array_arg"
+	// ErrorInvalidCharset : The method was called via a POST request, but the charset specified in the Content-Type header was invalid. Valid charset names are: utf-8 or iso-8859-1.
+	ErrorInvalidCharset = "invalid_charset"
+	// ErrorInvalidFormData : The method was called via a POST request with Content-Type application/x-www-form-urlencoded or multipart/form-data, but the form data was either missing or syntactically invalid.
+	ErrorInvalidFormData = "invalid_form_data"
+	// ErrorInvalidPostType : The method was called via a POST request, but the specified Content-Type was invalid. Valid types are: application/json application/x-www-form-urlencoded multipart/form-data text/plain.
+	ErrorInvalidPostType = "invalid_post_type"
+	// ErrorMissingPostType : The method was called via a POST request and included a data payload, but the request did not include a Content-Type header.
+	ErrorMissingPostType = "missing_post_type"
+	// ErrorRequestTimeout : The method was called via a POST request, but the POST data was either missing or truncated.
+	ErrorRequestTimeout = "request_timeout"
+	// ErrorMessageNotFound	: No message exists with the requested timestamp.
+	ErrorMessageNotFound = "message_not_found"
+	// ErrorChannelNotFound : Value passed for channel was invalid.
+	ErrorChannelNotFound = "channel_not_found"
+	// ErrorCantDeleteMessage : Authenticated user does not have permission to delete this message.
+	ErrorCantDeleteMessage = "cant_delete_message"
+	// ErrorUserIsBot : Authenticated user is a bot and is restricted in it's use of certain api endpoints.
+	ErrorUserIsBot = "user_is_bot"
+	// ErrorBadTimestamp : Value passed for timestamp was invalid.
+	ErrorBadTimestamp = "bad_timestamp"
+	// ErrorFileNotFound : File specified by file does not exist.
+	ErrorFileNotFound = "file_not_found"
+	// ErrorFileCommentNotFound : File comment specified by file_comment does not exist.
+	ErrorFileCommentNotFound = "file_comment_not_found"
+	// ErrorNoItemSpecified : file, file_comment, or combination of channel and timestamp was not specified.
+	ErrorNoItemSpecified = "no_item_specified"
+	// ErrorInvalidName : Value passed for name was invalid.
+	ErrorInvalidName = "invalid_name"
+	// ErrorAlreadyReacted : The specified item already has the user/reaction combination.
+	ErrorAlreadyReacted = "already_reacted"
+	// ErrorTooManyEmoji : The limit for distinct reactions (i.e emoji) on the item has been reached.
+	ErrorTooManyEmoji = "too_many_emoji"
+	// ErrorTooManyReactions : 	The limit for reactions a person may add to the item has been reached.
+	ErrorTooManyReactions = "too_many_reactions"
 
 	// EventHello is an enumerated event.
 	EventHello Event = "hello"
@@ -169,207 +238,6 @@ const (
 	EventSubtypeChannelUnarchive Event = "channel_unarchive"
 )
 
-// User is the struct that represents a Slack user.
-type User struct {
-	ID                string       `json:"id"`
-	Name              string       `json:"name"`
-	Deleted           bool         `json:"deletd"`
-	Color             string       `json:"color"`
-	Profile           *UserProfile `json:"profile"`
-	IsBot             bool         `json:"is_bot"`
-	IsAdmin           bool         `json:"is_admin"`
-	IsOwner           bool         `json:"is_owner"`
-	IsPrimaryOwner    bool         `json:"is_primary_owner"`
-	IsRestricted      bool         `json:"is_restricted"`
-	IsUltraRestricted bool         `json:"is_ultra_restricted"`
-	Has2FA            bool         `json:"has_2fa"`
-	TwoFactorType     string       `json:"two_factor_type"`
-	HasFiles          bool         `json:"has_files"`
-}
-
-// UserProfile represents additional information about a Slack user.
-type UserProfile struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	RealName  string `json:"real_name"`
-	Email     string `json:"email"`
-	Skype     string `json:"skype"`
-	Phone     string `json:"phone"`
-	Image24   string `json:"image_24"`
-	Image32   string `json:"image_32"`
-	Image48   string `json:"image_48"`
-	Image72   string `json:"image_72"`
-	Image192  string `json:"image_192"`
-}
-
-// Channel is the struct that represents a Slack channel.
-type Channel struct {
-	ID                 string    `json:"id"`
-	Name               string    `json:"name"`
-	IsChannel          bool      `json:"is_channel"`
-	Created            Timestamp `json:"created"`
-	Creator            string    `json:"creator"`
-	IsArchived         bool      `json:"is_archived"`
-	IsGeneral          bool      `json:"is_general"`
-	Members            []string  `json:"members"`
-	Topic              *Topic    `json:"topic"`
-	Purpose            *Topic    `json:"purpose"`
-	IsMember           bool      `json:"is_member"`
-	LastRead           Timestamp `json:"last_read"`
-	UnreadCount        int       `json:"unread_count"`
-	UnreadCountDisplay int       `json:"unread_count_display"`
-	Latest             Message   `json:"latest"`
-}
-
-// Topic represents a Slack topic.
-type Topic struct {
-	Value   string    `json:"value"`
-	Creator string    `json:"creator"`
-	LastSet Timestamp `json:"last_set"`
-}
-
-// Group represents a Slack group.
-type Group struct {
-	ID                 string    `json:"id"`
-	Name               string    `json:"name"`
-	IsGroup            bool      `json:"is_group"`
-	Created            Timestamp `json:"created"`
-	Creator            string    `json:"creator"`
-	IsArchived         bool      `json:"is_archived"`
-	IsMPIM             bool      `json:"is_mpim"`
-	Members            []string  `json:"members"`
-	Topic              *Topic    `json:"topic"`
-	Purpose            *Topic    `json:"purpose"`
-	LastRead           Timestamp `json:"last_read"`
-	UnreadCount        int       `json:"unread_count"`
-	UnreadCountDisplay int       `json:"unread_count_display"`
-	Latest             Message   `json:"latest"`
-}
-
-// InstantMessage represents a Slack instant message.
-type InstantMessage struct {
-	ID            string    `json:"id"`
-	IsIM          bool      `json:"is_im"`
-	User          string    `json:"user"`
-	Created       Timestamp `json:"created"`
-	IsUserDeleted bool      `json:"is_user_deleted"`
-	Latest        Message   `json:"latest"`
-}
-
-// Icon represents a Slack icon.
-type Icon struct {
-	Image24  string `json:"image_24"`
-	Image32  string `json:"image_32"`
-	Image48  string `json:"image_48"`
-	Image72  string `json:"image_72"`
-	Image192 string `json:"image_192"`
-}
-
-// Bot represents a Slack bot.
-type Bot struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Icons Icon   `json:"icons"`
-}
-
-// BareMessage is an intermediate type used to figure out what final type to deserialize a message as.
-type BareMessage struct {
-	Type Event `json:"type"`
-}
-
-// Message is a basic final message type that encapsulates the most commonly used fields.
-type Message struct {
-	ID        string    `json:"id"`
-	Type      Event     `json:"type"`
-	SubType   string    `json:"subtype,omitempty"`
-	Hidden    bool      `json:"hidden,omitempty"`
-	Timestamp Timestamp `json:"ts,omitempty"`
-	Channel   string    `json:"channel,omitempty"`
-	User      string    `json:"user"`
-	Text      string    `json:"text"`
-}
-
-// ChannelJoinedMessage is a final message type for the EventChannelJoined event type.
-type ChannelJoinedMessage struct {
-	Type    Event   `json:"type"`
-	Channel Channel `json:"channel,omitempty"`
-}
-
-// Self represents information about the bot itself.
-type Self struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Created        Timestamp `json:"created"`
-	ManualPresense string    `json:"manual_presence"`
-}
-
-// Team represents information about a Slack team.
-type Team struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	EmailDomain       string `json:"email_domain"`
-	MsgEditWindowMins int    `json:"msg_edit_window_mins"`
-	OverStorageLimit  bool   `json:"over_storage_limit"`
-}
-
-// Session represents information about a Slack session and is returned by APIStart.
-type Session struct {
-	OK       bool             `json:"ok"`
-	URL      string           `json:"url"`
-	Self     *Self            `json:"self"`
-	Team     *Team            `json:"team"`
-	Users    []User           `json:"users"`
-	Channels []Channel        `json:"channels"`
-	Groups   []Group          `json:"groups"`
-	IMs      []InstantMessage `json:"ims"`
-	Error    string           `json:"error,omitempty"`
-}
-
-// basicResponse is a utility intermediate type.
-type basicResponse struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error"`
-}
-
-// ChatMessage is a struct that represents an outgoing chat message for the Slack chat message api.
-type ChatMessage struct {
-	Token       string                  `json:"token"`
-	Channel     string                  `json:"channel"`
-	Text        string                  `json:"text"`
-	Username    *string                 `json:"username,omitempty"`
-	AsUser      *bool                   `json:"as_user,omitempty"`
-	Parse       *string                 `json:"parse,omitempty"`
-	LinkNames   *bool                   `json:"link_names,omitempty"`
-	UnfurlLinks *bool                   `json:"unfurl_links,omitempty"`
-	UnfurlMedia *bool                   `json:"unfurl_media,omitempty"`
-	IconURL     *string                 `json:"icon_url,omitempty"`
-	IconEmoji   *string                 `json:"icon_emoji,omitempty"`
-	Attachments []ChatMessageAttachment `json:"attachments,omitempty"`
-}
-
-// ChatMessageAttachment is a struct that represents an attachment to a chat message for the Slack chat message api.
-type ChatMessageAttachment struct {
-	Fallback      string  `json:"fallback"`
-	Color         *string `json:"color"`
-	Pretext       *string `json:"pretext,omitempty"`
-	AuthorName    *string `json:"author_name,omitempty"`
-	AuthorLink    *string `json:"author_link,omitempty"`
-	AuthorIcon    *string `json:"author_icon,omitempty"`
-	Title         *string `json:"title,omitempty"`
-	TitleLink     *string `json:"title_link,omitempty"`
-	Text          *string `json:"text,omitempty"`
-	Fields        []Field `json:"fields,omitempty"`
-	ImageURL      *string `json:"image_url,omitempty"`
-	ImageThumbURL *string `json:"thumb_url,omitempty"`
-}
-
-// Field represents a field on a Slack ChatMessageAttachment.
-type Field struct {
-	Title string `json:"title"`
-	Value string `json:"value"`
-	Short bool   `json:"short"`
-}
-
 // Listener is a function that recieves messages from a client.
 type Listener func(message *Message, client *Client)
 
@@ -380,8 +248,8 @@ type Listener func(message *Message, client *Client)
 // dont' care about.
 // --------------------------------------------------------------------------------
 
-// Connect creates a Client with a given token.
-func Connect(token string) *Client {
+// NewClient creates a Client with a given token.
+func NewClient(token string) *Client {
 	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: &sync.Mutex{}}
 	c.Listen(EventChannelJoined, c.handleChannelJoined)
 	c.Listen(EventChannelDeleted, c.handleChannelDeleted)
@@ -417,7 +285,7 @@ func (rtm *Client) StopListening(event Event) {
 }
 
 // Start begins a session with Slack.
-func (rtm *Client) Start() (*Session, error) {
+func (rtm *Client) Connect() (*Session, error) {
 	res := Session{}
 	resErr := request.NewRequest().
 		AsPost().
@@ -616,16 +484,111 @@ func (rtm *Client) removeActiveChannel(channelID string) {
 // API METHODS
 //--------------------------------------------------------------------------------
 
-type channelsListResponse struct {
-	Ok       bool      `json:"ok"`
-	Error    string    `json:"error"`
-	Channels []Channel `json:"channels"`
+func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
+	res := AuthTestResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/auth.test").
+		WithPostData("token", rtm.Token).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if len(res.Error) != 0 {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
+	return &res, nil
+}
+
+func (rtm *Client) ChannelsHistory(channelID string, latest, oldest *time.Time, count int, unreads bool) (*ChannelsHistoryResponse, error) {
+	unreadsValue := "0"
+	if unreads {
+		unreadsValue = "1"
+	}
+
+	if count == -1 {
+		count = 1000
+	} else if count < 1 {
+		count = 1
+	} else if count > 1000 {
+		count = 1000
+	}
+
+	res := ChannelsHistoryResponse{}
+	req := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/channels.history").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelID).
+		WithPostData("count", string(count)).
+		WithPostData("unreads", unreadsValue)
+
+	if latest != nil {
+		req = req.WithPostData("latest", Timestamp{time: *latest}.String())
+	}
+
+	if oldest != nil {
+		req = req.WithPostData("oldest", Timestamp{time: *latest}.String())
+	}
+
+	resErr := req.FetchJsonToObject(&res)
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if len(res.Error) != 0 {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
+	return &res, nil
+}
+
+// ChannelsInfo returns information about a given channelID.
+func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
+	res := channelsInfoResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/channels.info").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelID).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
+	return res.Channel, nil
 }
 
 // ChannelsList returns the list of channels available to the bot.
 func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 	res := channelsListResponse{}
-	req := request.NewRequest().
+	req := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -646,49 +609,23 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 		return nil, exception.New(res.Error)
 	}
 
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
 	return res.Channels, nil
 }
 
-type channelsInfoResponse struct {
-	Ok      bool     `json:"ok"`
-	Error   string   `json:"error"`
-	Channel *Channel `json:"channel"`
-}
-
-// ChannelsInfo returns information about a given channelID.
-func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
-	res := channelsInfoResponse{}
-	resErr := request.NewRequest().
-		AsPost().
-		WithScheme(APIScheme).
-		WithHost(APIEndpoint).
-		WithPath("api/channels.info").
-		WithPostData("token", rtm.Token).
-		WithPostData("channel", channelID).
-		FetchJsonToObject(&res)
-
-	if resErr != nil {
-		return nil, resErr
-	}
-
-	if !IsEmpty(res.Error) {
-		return nil, exception.New(res.Error)
-	}
-
-	return res.Channel, nil
-}
-
-// ChannelsSetTopic sets the topic for a given Slack channel.
-func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
+func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 	res := basicResponse{}
-	resErr := request.NewRequest().
+	resErr := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
-		WithPath("api/channels.leave").
+		WithPath("api/chat.mark").
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
-		WithPostData("topic", topic).
+		WithPostData("ts", ts.String()).
 		FetchJsonToObject(&res)
 
 	if resErr != nil {
@@ -698,6 +635,9 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 	if !IsEmpty(res.Error) {
 		return exception.New(res.Error)
 	}
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
 
 	return nil
 }
@@ -705,11 +645,11 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 // ChannelsSetPurpose sets the purpose for a given Slack channel.
 func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 	res := basicResponse{}
-	resErr := request.NewRequest().
+	resErr := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
-		WithPath("api/channels.leave").
+		WithPath("api/channels.setPurpose").
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
 		WithPostData("purpose", purpose).
@@ -723,19 +663,260 @@ func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 		return exception.New(res.Error)
 	}
 
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
+
 	return nil
 }
 
-type usersListResponse struct {
-	Ok    bool   `json:"ok"`
-	Error string `json:"error"`
-	Users []User `json:"members"`
+// ChannelsSetTopic sets the topic for a given Slack channel.
+func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
+	res := basicResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/channels.setTopic").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelID).
+		WithPostData("topic", topic).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
+
+	return nil
+}
+
+func (rtm *Client) ChatDelete(channelID string, ts Timestamp) error {
+	res := basicResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/chat.delete").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelID).
+		WithPostData("ts", ts.String()).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
+
+	return nil
+}
+
+// ChatPostMessage posts a message to Slack using the chat api.
+func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessageResponse, error) { //the response version of the message is returned for verification
+	res := ChatMessageResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/chat.postMessage").
+		WithPostData("token", rtm.Token).
+		WithPostDataFromObject(m).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
+	return &res, nil
+}
+
+// ChatPostMessage posts a message to Slack using the chat api.
+func (rtm *Client) ChatUpdate(ts Timestamp, m *ChatMessage) (*ChatMessageResponse, error) { //the response version of the message is returned for verification
+	res := ChatMessageResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/chat.update").
+		WithPostData("token", rtm.Token).
+		WithPostData("ts", ts.String()).
+		WithPostDataFromObject(m).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+
+	return &res, nil
+}
+
+func (rtm *Client) EmojiList() (map[string]string, error) {
+	res := emojiResponse{}
+	resErr := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/emoji.list").
+		WithPostData("token", rtm.Token).
+		FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+	return res.Emoji, nil
+}
+
+func (rtm *Client) ReactionsAdd(name string, fileID, fileCommentID, channelID *string, ts *Timestamp) error {
+	res := basicResponse{}
+	req := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/reactions.add").
+		WithPostData("token", rtm.Token).
+		WithPostData("name", name)
+
+	if fileID != nil {
+		req = req.WithPostData("file", *fileID)
+	} else if fileCommentID != nil {
+		req = req.WithPostData("file_comment", *fileCommentID)
+	} else if channelID != nil && ts != nil {
+		req = req.WithPostData("channel", *channelID)
+		req = req.WithPostData("timestamp", ts.String())
+	} else {
+		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
+	}
+
+	resErr := req.FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
+	return nil
+}
+
+func (rtm *Client) ReactionsGet(fileID, fileCommentID, channelID *string, ts *Timestamp) (*ChatMessageResponse, error) {
+	res := ChatMessageResponse{}
+	req := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/reactions.get").
+		WithPostData("token", rtm.Token)
+
+	if fileID != nil {
+		req = req.WithPostData("file", *fileID)
+	} else if fileCommentID != nil {
+		req = req.WithPostData("file_comment", *fileCommentID)
+	} else if channelID != nil && ts != nil {
+		req = req.WithPostData("channel", *channelID)
+		req = req.WithPostData("timestamp", ts.String())
+	} else {
+		return nil, exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
+	}
+
+	resErr := req.FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return nil, exception.New("slack response `ok` is false.")
+	}
+	return &res, nil
+}
+
+func (rtm *Client) ReactionsRemove(name string, fileID, fileCommentID, channelID *string, ts *Timestamp) error {
+	res := basicResponse{}
+	req := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/reactions.remove").
+		WithPostData("token", rtm.Token).
+		WithPostData("name", name)
+
+	if fileID != nil {
+		req = req.WithPostData("file", *fileID)
+	} else if fileCommentID != nil {
+		req = req.WithPostData("file_comment", *fileCommentID)
+	} else if channelID != nil && ts != nil {
+		req = req.WithPostData("channel", *channelID)
+		req = req.WithPostData("timestamp", ts.String())
+	} else {
+		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
+	}
+
+	resErr := req.FetchJsonToObject(&res)
+
+	if resErr != nil {
+		return resErr
+	}
+
+	if !IsEmpty(res.Error) {
+		return exception.New(res.Error)
+	}
+
+	if !res.OK {
+		return exception.New("slack response `ok` is false.")
+	}
+	return nil
 }
 
 // UsersList returns all users for a given Slack organization.
 func (rtm *Client) UsersList() ([]User, error) {
 	res := usersListResponse{}
-	resErr := request.NewRequest().
+	resErr := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -754,16 +935,10 @@ func (rtm *Client) UsersList() ([]User, error) {
 	return res.Users, nil
 }
 
-type usersInfoResponse struct {
-	Ok    bool   `json:"ok"`
-	Error string `json:"error"`
-	User  *User  `json:"users"`
-}
-
 // UsersInfo returns an User object for a given userID.
 func (rtm *Client) UsersInfo(userID string) (*User, error) {
 	res := usersInfoResponse{}
-	resErr := request.NewRequest().
+	resErr := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -781,160 +956,4 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 	}
 
 	return res.User, nil
-}
-
-// NewChatMessage instantiates a ChatMessage for use with ChatPostMessage.
-func NewChatMessage(channelID, text string) *ChatMessage {
-	return &ChatMessage{Channel: channelID, Text: text, Parse: OptionalString("full")}
-}
-
-type chatPostMessageResponse struct {
-	Ok        bool         `json:"ok"`
-	Timestamp Timestamp    `json:"timestamp"`
-	Message   *ChatMessage `json:"message"`
-	Error     string       `json:"error"`
-}
-
-// ChatPostMessage posts a message to Slack using the chat api.
-func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessage, error) { //the response version of the message is returned for verification
-	m.Token = rtm.Token
-
-	res := chatPostMessageResponse{}
-	resErr := request.NewRequest().
-		AsPost().
-		WithScheme(APIScheme).
-		WithHost(APIEndpoint).
-		WithPath("api/chat.postMessage").
-		WithPostDataFromObject(m).
-		FetchJsonToObject(&res)
-
-	if resErr != nil {
-		return nil, resErr
-	}
-
-	if !IsEmpty(res.Error) {
-		return nil, exception.New(res.Error)
-	}
-
-	return res.Message, nil
-}
-
-// A Timestamp is a special time.Time alias that parses Slack timestamps better.
-type Timestamp time.Time
-
-// ParseTimestamp parses a given Slack timestamp.
-func ParseTimestamp(strValue string) *Timestamp {
-	if integerValue, integerErr := strconv.ParseInt(strValue, 10, 64); integerErr == nil {
-		t := Timestamp(time.Unix(integerValue, 0))
-		return &t
-	}
-	if _, floatErr := strconv.ParseFloat(strValue, 64); floatErr == nil {
-		components := strings.Split(strValue, ".")
-		if integerValue, integerErr := strconv.ParseInt(components[0], 10, 64); integerErr == nil {
-			t := Timestamp(time.Unix(integerValue, 0))
-			return &t
-		}
-	}
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshal for the Timestamp struct.
-func (t *Timestamp) UnmarshalJSON(data []byte) error {
-	strValue := string(data)
-	t = ParseTimestamp(strValue)
-	return nil
-}
-
-// DateTime returns a regular golang time.Time for the Timestamp instance.
-func (t Timestamp) DateTime() time.Time {
-	return time.Time(t)
-}
-
-func OptionalUInt8(value uint8) *uint8 {
-	return &value
-}
-
-func OptionalByte(value byte) *byte {
-	return &value
-}
-
-func OptionalUInt16(value uint16) *uint16 {
-	return &value
-}
-
-func OptionalUInt(value uint) *uint {
-	return &value
-}
-
-func OptionalUInt32(value uint32) *uint32 {
-	return &value
-}
-
-func OptionalUInt64(value uint64) *uint64 {
-	return &value
-}
-
-func OptionalInt16(value int16) *int16 {
-	return &value
-}
-
-func OptionalInt(value int) *int {
-	return &value
-}
-
-func OptionalInt32(value int32) *int32 {
-	return &value
-}
-
-func OptionalInt64(value int64) *int64 {
-	return &value
-}
-
-func OptionalFloat32(value float32) *float32 {
-	return &value
-}
-
-func OptionalFloat64(value float64) *float64 {
-	return &value
-}
-
-func OptionalString(value string) *string {
-	return &value
-}
-
-func OptionalBool(value bool) *bool {
-	return &value
-}
-
-func OptionalTime(value time.Time) *time.Time {
-	return &value
-}
-
-func IsEmpty(s string) bool {
-	return len(s) == 0
-}
-
-type UUID []byte
-
-func (uuid UUID) ToFullString() string {
-	b := []byte(uuid)
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-func (uuid UUID) ToShortString() string {
-	b := []byte(uuid)
-	return fmt.Sprintf("%x", b[:])
-}
-
-func (uuid UUID) Version() byte {
-	return uuid[6] >> 4
-}
-
-func UUIDv4() UUID {
-	uuid := make([]byte, 16)
-	rand.Read(uuid)
-	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
-	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-	return uuid
 }
