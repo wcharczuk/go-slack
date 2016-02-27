@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
-	"time"
 
 	"github.com/blendlabs/go-request"
 )
@@ -69,10 +68,11 @@ func NewExternalRequest() *request.HttpRequest {
 		} else {
 			return false, nil, nil, nil
 		}
-	}).WithIncomingResponseHook(func(meta *request.HttpResponseMeta, responseBody []byte) {
-		if !isMocked {
-			fmt.Printf("%s - Slack API Response - %d - %s\n", time.Now().UTC().Format(time.RFC3339), meta.StatusCode, string(responseBody))
-		}
 	})
+	// .WithIncomingResponseHook(func(meta *request.HttpResponseMeta, responseBody []byte) {
+	// 	if !isMocked {
+	// 		fmt.Printf("%s - Slack API Response - %d - %s\n", time.Now().UTC().Format(time.RFC3339), meta.StatusCode, string(responseBody))
+	// 	}
+	// })
 	return req
 }
