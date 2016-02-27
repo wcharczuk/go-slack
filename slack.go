@@ -913,6 +913,10 @@ func (rtm *Client) ReactionsRemove(name string, fileID, fileCommentID, channelID
 	return nil
 }
 
+func (rtm *Client) ReactionsList(userID *string, full *bool, count *int, page *int) ([]Reaction, error) {
+	return nil, nil
+}
+
 // UsersList returns all users for a given Slack organization.
 func (rtm *Client) UsersList() ([]User, error) {
 	res := usersListResponse{}

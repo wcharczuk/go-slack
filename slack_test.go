@@ -9,7 +9,10 @@ import (
 
 func getSlackToken(a *assert.Assertions) string {
 	token := os.Getenv("SLACK_TOKEN")
-	a.NotEmpty(token, "`SLACK_TOKEN` environment variable must be set.")
+	//a.NotEmpty(token, "`SLACK_TOKEN` environment variable must be set.")
+	if len(token) == 0 {
+		return UUIDv4().ToShortString()
+	}
 	return token
 }
 
