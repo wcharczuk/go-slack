@@ -54,12 +54,12 @@ func ClearMockedResponses() {
 }
 
 // NewExternalRequest Creates a new external request
-func NewExternalRequest() *request.HttpRequest {
-	req := request.NewRequest().WithMockedResponse(func(verb string, workingURL *url.URL) (bool, *request.HttpResponseMeta, []byte, error) {
+func NewExternalRequest() *request.HTTPRequest {
+	req := request.NewHTTPRequest().WithMockedResponse(func(verb string, workingURL *url.URL) (bool, *request.HTTPResponseMeta, []byte, error) {
 		if isMocked {
 			storedURL := fmt.Sprintf("%s_%s", verb, workingURL.String())
 			if mockResponse, ok := mocks[storedURL]; ok {
-				meta := &request.HttpResponseMeta{}
+				meta := &request.HTTPResponseMeta{}
 				meta.StatusCode = mockResponse.StatusCode
 				meta.ContentLength = int64(len(mockResponse.ResponseBody))
 				return true, meta, mockResponse.ResponseBody, mockResponse.Error
@@ -69,10 +69,6 @@ func NewExternalRequest() *request.HttpRequest {
 			return false, nil, nil, nil
 		}
 	})
-	// .WithIncomingResponseHook(func(meta *request.HttpResponseMeta, responseBody []byte) {
-	// 	if !isMocked {
-	// 		fmt.Printf("%s - Slack API Response - %d - %s\n", time.Now().UTC().Format(time.RFC3339), meta.StatusCode, string(responseBody))
-	// 	}
-	// })
+
 	return req
 }
