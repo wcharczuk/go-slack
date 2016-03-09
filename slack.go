@@ -67,7 +67,7 @@ const (
 	ErrorMissingPostType = "missing_post_type"
 	// ErrorRequestTimeout : The method was called via a POST request, but the POST data was either missing or truncated.
 	ErrorRequestTimeout = "request_timeout"
-	// ErrorMessageNotFound	: No message exists with the requested timestamp.
+	// ErrorMessageNotFound No message exists with the requested timestamp.
 	ErrorMessageNotFound = "message_not_found"
 	// ErrorChannelNotFound : Value passed for channel was invalid.
 	ErrorChannelNotFound = "channel_not_found"
@@ -283,7 +283,7 @@ func (rtm *Client) StopListening(event Event) {
 	delete(rtm.EventListeners, event)
 }
 
-// Start begins a session with Slack.
+// Connect begins a session with Slack.
 func (rtm *Client) Connect() (*Session, error) {
 	res := Session{}
 	resErr := NewExternalRequest().
@@ -483,6 +483,7 @@ func (rtm *Client) removeActiveChannel(channelID string) {
 // API METHODS
 //--------------------------------------------------------------------------------
 
+// AuthTest tests if the token works for a client.
 func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
 	res := AuthTestResponse{}
 	resErr := NewExternalRequest().
@@ -508,6 +509,7 @@ func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
 	return &res, nil
 }
 
+// ChannelsHistory returns the messages in a channel.
 func (rtm *Client) ChannelsHistory(channelID string, latest, oldest *time.Time, count int, unreads bool) (*ChannelsHistoryResponse, error) {
 	unreadsValue := "0"
 	if unreads {
@@ -615,6 +617,7 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 	return res.Channels, nil
 }
 
+// ChannelsMark marks a message.
 func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 	res := basicResponse{}
 	resErr := NewExternalRequest().
