@@ -126,6 +126,7 @@ type Message struct {
 	Reactions []Reaction `json:"reactions,omitempty"`
 }
 
+// Reaction is a reaction on a message.
 type Reaction struct {
 	Name  string   `json:"name"`
 	Count int      `json:"count"`
@@ -215,8 +216,8 @@ type ChatMessage struct {
 
 // ChatMessageAttachment is a struct that represents an attachment to a chat message for the Slack chat message api.
 type ChatMessageAttachment struct {
-	Fallback      string  `json:"fallback"`
-	Color         *string `json:"color"`
+	Fallback      *string `json:"fallback,omitempty"`
+	Color         *string `json:"color,omitempty"`
 	Pretext       *string `json:"pretext,omitempty"`
 	AuthorName    *string `json:"author_name,omitempty"`
 	AuthorLink    *string `json:"author_link,omitempty"`
@@ -229,6 +230,7 @@ type ChatMessageAttachment struct {
 	ImageThumbURL *string `json:"thumb_url,omitempty"`
 }
 
+//File is a file attachment to a message.
 type File struct {
 	ID                 string     `json:"id"`
 	Created            Timestamp  `json:"created"`
@@ -284,13 +286,14 @@ type Field struct {
 	Short bool   `json:"short"`
 }
 
-// AuthTestArgs is an alias for the general format json.Unmarshal uses for JSON objects.
-type ApiTestArgs map[string]interface{}
+// APITestArgs is an alias for the general format json.Unmarshal uses for JSON objects.
+type APITestArgs map[string]interface{}
 
-type ApiTestResponse struct {
+// APITestResponse is a response to the api test method.
+type APITestResponse struct {
 	OK    bool        `json:"ok"`
 	Error string      `json:"error,omitempty"`
-	Args  ApiTestArgs `json:"args"`
+	Args  APITestArgs `json:"args"`
 }
 
 // AuthTestResponse is the response format from slack for auth.test endpoint.
@@ -304,6 +307,7 @@ type AuthTestResponse struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// ChannelsHistoryResponse is a response to the channels.history method.
 type ChannelsHistoryResponse struct {
 	OK                 bool      `json:"ok"`
 	Error              string    `json:"error"`
@@ -344,6 +348,7 @@ type usersInfoResponse struct {
 	User  *User  `json:"users"`
 }
 
+// ChatMessageResponse is a response to chat.postMessage
 type ChatMessageResponse struct {
 	OK          bool      `json:"ok"`
 	Timestamp   Timestamp `json:"timestamp"`
