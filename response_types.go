@@ -176,16 +176,40 @@ type basicResponse struct {
 
 // ChatMessage is a struct that represents an outgoing chat message for the Slack chat message api.
 type ChatMessage struct {
-	Channel     string                  `json:"channel"`
-	Text        string                  `json:"text"`
-	Username    *string                 `json:"username,omitempty"`
-	AsUser      *bool                   `json:"as_user,omitempty"`
-	Parse       *string                 `json:"parse,omitempty"`
-	LinkNames   *bool                   `json:"link_names,omitempty"`
-	UnfurlLinks *bool                   `json:"unfurl_links,omitempty"`
-	UnfurlMedia *bool                   `json:"unfurl_media,omitempty"`
-	IconURL     *string                 `json:"icon_url,omitempty"`
-	IconEmoji   *string                 `json:"icon_emoji,omitempty"`
+	// Channel is the channelID you'll be posting to.
+	Channel string `json:"channel"`
+
+	// Text is the basic payload of the message.
+	Text string `json:"text"`
+
+	// Username is the displayed username for the bot (optional).
+	Username *string `json:"username,omitempty"`
+
+	// AsUser indicates if the message should be authed as a user instead of the bot (optional, default false).
+	AsUser *bool `json:"as_user,omitempty"`
+
+	// Parse changes how messages are treated (optional, default "full").
+	// Valid options include: `full` = full escaping, `none` = no escaping.
+	Parse *string `json:"parse,omitempty"`
+
+	// LinkNames : find and link channel names and usernames (optional, default true).
+	LinkNames *bool `json:"link_names,omitempty"`
+
+	// UnfurlLinks unfurls text (urls, names) based content (optional, default true).
+	UnfurlLinks *bool `json:"unfurl_links,omitempty"`
+
+	// UnfurlMedia unfurls media based content (optional, default false).
+	UnfurlMedia *bool `json:"unfurl_media,omitempty"`
+
+	// IconURL is a replacement icon for the bot message (optional).
+	// NOTES: as_user must be set to false or omitted.
+	IconURL *string `json:"icon_url,omitempty"`
+
+	// IconEmoji is a replacement icon (as an emoji) for the bot message (optional).
+	// NOTES: as_user must be set to false or omitted.
+	IconEmoji *string `json:"icon_emoji,omitempty"`
+
+	// Attachments are the chat message attachments for the message.
 	Attachments []ChatMessageAttachment `json:"attachments,omitempty"`
 }
 
