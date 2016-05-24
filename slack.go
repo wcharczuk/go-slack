@@ -249,7 +249,7 @@ type Listener func(message *Message, client *Client)
 
 // NewClient creates a Client with a given token.
 func NewClient(token string) *Client {
-	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: &sync.Mutex{}}
+	c := &Client{Token: token, EventListeners: map[Event][]Listener{}, ActiveChannels: []string{}, activeLock: &sync.Mutex{}, pingInterval: 2 * time.Second}
 	c.Listen(EventChannelJoined, c.handleChannelJoined)
 	c.Listen(EventChannelDeleted, c.handleChannelDeleted)
 	c.Listen(EventChannelUnArchive, c.handleChannelUnarchive)
@@ -265,6 +265,8 @@ type Client struct {
 
 	activeLock       *sync.Mutex
 	socketConnection *websocket.Conn
+
+	pingInterval time.Duration
 }
 
 // Listen attaches a new Listener to the given event.
@@ -286,7 +288,7 @@ func (rtm *Client) StopListening(event Event) {
 // Connect begins a session with Slack.
 func (rtm *Client) Connect() (*Session, error) {
 	res := Session{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -296,8 +298,8 @@ func (rtm *Client) Connect() (*Session, error) {
 		WithPostData("mpim_aware", "true").
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -305,16 +307,15 @@ func (rtm *Client) Connect() (*Session, error) {
 	}
 
 	//start socket connection
-	u, urlErr := url.Parse(res.URL)
-	if urlErr != nil {
-		return nil, urlErr
+	u, err := url.Parse(res.URL)
+	if err != nil {
+		return nil, err
 	}
 
-	var socketErr error
-	rtm.socketConnection, _, socketErr = websocket.DefaultDialer.Dial(u.String(), nil)
+	rtm.socketConnection, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
 
-	if socketErr != nil {
-		return nil, socketErr
+	if err != nil {
+		return nil, err
 	}
 
 	go func() { //fetch the (initial) channel list asyncronously
@@ -335,6 +336,10 @@ func (rtm *Client) Connect() (*Session, error) {
 	}()
 
 	go func() {
+		rtm.pingLoop()
+	}()
+
+	go func() {
 		rtm.listenLoop()
 	}()
 
@@ -352,6 +357,7 @@ func (rtm *Client) Stop() error {
 		return closeErr
 	}
 	rtm.socketConnection.Close()
+	rtm.socketConnection = nil
 	return nil
 }
 
@@ -399,28 +405,71 @@ func (rtm *Client) Ping() error {
 // INTERNAL METHODS
 //--------------------------------------------------------------------------------
 
+func (rtm *Client) pingLoop() error {
+	var err error
+	for rtm.socketConnection != nil {
+		err = rtm.Ping()
+		if err != nil {
+			err = rtm.cycleConnection()
+			if err != nil {
+				break
+			}
+		}
+		time.Sleep(rtm.pingInterval)
+	}
+
+	return nil
+}
+
+func (rtm *Client) cycleConnection() error {
+	res := Session{}
+	err := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/rtm.start").
+		WithPostData("token", rtm.Token).
+		WithPostData("no_unreads", "true").
+		WithPostData("mpim_aware", "true").
+		FetchJSONToObject(&res)
+
+	if err != nil {
+		return err
+	}
+
+	u, err := url.Parse(res.URL)
+	if err != nil {
+		return err
+	}
+	rtm.socketConnection, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+	return err
+}
+
 func (rtm *Client) listenLoop() error {
+	var err error
+	var messageBytes []byte
+	var bm BareMessage
+	var cm ChannelJoinedMessage
+	var m Message
+
 	for {
 		if rtm.socketConnection == nil {
 			return nil
 		}
-		_, messageBytes, err := rtm.socketConnection.ReadMessage()
+		_, messageBytes, err = rtm.socketConnection.ReadMessage()
 		if err != nil {
 			return err
 		}
 
-		var bm BareMessage
-		jsonErr := json.Unmarshal(messageBytes, &bm)
+		err = json.Unmarshal(messageBytes, &bm)
 		if bm.Type == EventChannelJoined {
-			var cm ChannelJoinedMessage
-			jsonErr = json.Unmarshal(messageBytes, &cm)
-			if jsonErr == nil {
+			err = json.Unmarshal(messageBytes, &cm)
+			if err == nil {
 				rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
 			}
 		} else {
-			var m Message
-			jsonErr = json.Unmarshal(messageBytes, &m)
-			if jsonErr == nil {
+			err = json.Unmarshal(messageBytes, &m)
+			if err == nil {
 				rtm.dispatch(&m)
 			}
 		}
@@ -428,9 +477,10 @@ func (rtm *Client) listenLoop() error {
 }
 
 func (rtm *Client) dispatch(m *Message) {
+	var listener Listener
 	if listeners, hasListeners := rtm.EventListeners[m.Type]; hasListeners {
 		for x := 0; x < len(listeners); x++ {
-			listener := listeners[x]
+			listener = listeners[x]
 			go func() {
 				listener(m, rtm)
 			}()
@@ -448,8 +498,8 @@ func (rtm *Client) handleChannelUnarchive(message *Message, client *Client) {
 	rtm.activeLock.Lock()
 	defer rtm.activeLock.Unlock()
 
-	channel, channelErr := rtm.ChannelsInfo(message.Channel)
-	if channelErr != nil {
+	channel, err := rtm.ChannelsInfo(message.Channel)
+	if err != nil {
 		return
 	}
 	if channel.IsMember {
@@ -486,7 +536,7 @@ func (rtm *Client) removeActiveChannel(channelID string) {
 // AuthTest tests if the token works for a client.
 func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
 	res := AuthTestResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -494,8 +544,8 @@ func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
 		WithPostData("token", rtm.Token).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if len(res.Error) != 0 {
@@ -543,9 +593,9 @@ func (rtm *Client) ChannelsHistory(channelID string, latest, oldest *time.Time, 
 		req = req.WithPostData("oldest", Timestamp{time: *latest}.String())
 	}
 
-	resErr := req.FetchJSONToObject(&res)
-	if resErr != nil {
-		return nil, resErr
+	err := req.FetchJSONToObject(&res)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(res.Error) != 0 {
@@ -562,7 +612,7 @@ func (rtm *Client) ChannelsHistory(channelID string, latest, oldest *time.Time, 
 // ChannelsInfo returns information about a given channelID.
 func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
 	res := channelsInfoResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -571,8 +621,8 @@ func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
 		WithPostData("channel", channelID).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -600,10 +650,10 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 		req = req.WithPostData("exclude_archived", "1")
 	}
 
-	resErr := req.FetchJSONToObject(&res)
+	err := req.FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -620,7 +670,7 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 // ChannelsMark marks a message.
 func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 	res := basicResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -630,8 +680,8 @@ func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 		WithPostData("ts", ts.String()).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -647,7 +697,7 @@ func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 // ChannelsSetPurpose sets the purpose for a given Slack channel.
 func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 	res := basicResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -657,8 +707,8 @@ func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 		WithPostData("purpose", purpose).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -675,7 +725,7 @@ func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 // ChannelsSetTopic sets the topic for a given Slack channel.
 func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 	res := basicResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -685,8 +735,8 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 		WithPostData("topic", topic).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -703,7 +753,7 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 // ChatDelete deletes a message.
 func (rtm *Client) ChatDelete(channelID string, ts Timestamp) error {
 	res := basicResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -713,8 +763,8 @@ func (rtm *Client) ChatDelete(channelID string, ts Timestamp) error {
 		WithPostData("ts", ts.String()).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -730,7 +780,7 @@ func (rtm *Client) ChatDelete(channelID string, ts Timestamp) error {
 // ChatPostMessage posts a message to Slack using the chat api.
 func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessageResponse, error) { //the response version of the message is returned for verification
 	res := ChatMessageResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -739,8 +789,8 @@ func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessageResponse, error)
 		WithPostDataFromObject(m).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -757,7 +807,7 @@ func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessageResponse, error)
 // ChatUpdate updates a chat message.
 func (rtm *Client) ChatUpdate(ts Timestamp, m *ChatMessage) (*ChatMessageResponse, error) { //the response version of the message is returned for verification
 	res := ChatMessageResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -767,8 +817,8 @@ func (rtm *Client) ChatUpdate(ts Timestamp, m *ChatMessage) (*ChatMessageRespons
 		WithPostDataFromObject(m).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -785,7 +835,7 @@ func (rtm *Client) ChatUpdate(ts Timestamp, m *ChatMessage) (*ChatMessageRespons
 // EmojiList returns a list of current emoji's for a slack.
 func (rtm *Client) EmojiList() (map[string]string, error) {
 	res := emojiResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -793,8 +843,8 @@ func (rtm *Client) EmojiList() (map[string]string, error) {
 		WithPostData("token", rtm.Token).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -829,10 +879,10 @@ func (rtm *Client) ReactionsAdd(name string, fileID, fileCommentID, channelID *s
 		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	resErr := req.FetchJSONToObject(&res)
+	err := req.FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -866,10 +916,10 @@ func (rtm *Client) ReactionsGet(fileID, fileCommentID, channelID *string, ts *Ti
 		return nil, exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	resErr := req.FetchJSONToObject(&res)
+	err := req.FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -904,10 +954,10 @@ func (rtm *Client) ReactionsRemove(name string, fileID, fileCommentID, channelID
 		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	resErr := req.FetchJSONToObject(&res)
+	err := req.FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return resErr
+	if err != nil {
+		return err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -923,7 +973,7 @@ func (rtm *Client) ReactionsRemove(name string, fileID, fileCommentID, channelID
 // UsersList returns all users for a given Slack organization.
 func (rtm *Client) UsersList() ([]User, error) {
 	res := usersListResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -931,8 +981,8 @@ func (rtm *Client) UsersList() ([]User, error) {
 		WithPostData("token", rtm.Token).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
@@ -945,7 +995,7 @@ func (rtm *Client) UsersList() ([]User, error) {
 // UsersInfo returns an User object for a given userID.
 func (rtm *Client) UsersInfo(userID string) (*User, error) {
 	res := usersInfoResponse{}
-	resErr := NewExternalRequest().
+	err := NewExternalRequest().
 		AsPost().
 		WithScheme(APIScheme).
 		WithHost(APIEndpoint).
@@ -954,8 +1004,8 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 		WithPostData("user", userID).
 		FetchJSONToObject(&res)
 
-	if resErr != nil {
-		return nil, resErr
+	if err != nil {
+		return nil, err
 	}
 
 	if !IsEmpty(res.Error) {
