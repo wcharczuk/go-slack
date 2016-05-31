@@ -110,6 +110,7 @@ type Bot struct {
 
 // BareMessage is an intermediate type used to figure out what final type to deserialize a message as.
 type BareMessage struct {
+	OK   *bool `json:"ok"`
 	Type Event `json:"type"`
 }
 
