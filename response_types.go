@@ -110,21 +110,37 @@ type Bot struct {
 
 // BareMessage is an intermediate type used to figure out what final type to deserialize a message as.
 type BareMessage struct {
-	OK   *bool `json:"ok"`
-	Type Event `json:"type"`
+	OK   *bool `json:"ok"`   /* used for fingering message responses */
+	Type Event `json:"type"` /* used for ~everything else~ wtf slack */
+}
+
+// MessageACK is a response to a message.
+type MessageACK struct {
+	OK        bool       `json:"ok"`
+	ReplyTo   int        `json:"reply_to"`
+	Timestamp *Timestamp `json:"ts"`
+	Text      string     `json:"text"`
+	Error     *Error     `json:"error,omitempty"`
 }
 
 // Message is a basic final message type that encapsulates the most commonly used fields.
 type Message struct {
-	ID        string     `json:"id"`
-	Type      Event      `json:"type"`
-	SubType   string     `json:"subtype,omitempty"`
-	Hidden    bool       `json:"hidden,omitempty"`
-	Timestamp *Timestamp `json:"ts,omitempty"`
-	Channel   string     `json:"channel,omitempty"`
-	User      string     `json:"user"`
-	Text      string     `json:"text"`
-	Reactions []Reaction `json:"reactions,omitempty"`
+	ID        string      `json:"id"`
+	Type      Event       `json:"type"`
+	SubType   string      `json:"subtype,omitempty"`
+	Hidden    bool        `json:"hidden,omitempty"`
+	Timestamp *Timestamp  `json:"ts,omitempty"`
+	Channel   string      `json:"channel,omitempty"`
+	User      string      `json:"user"`
+	Text      string      `json:"text"`
+	Reactions []Reaction  `json:"reactions,omitempty"`
+	ACK       *MessageACK `json:"-"`
+}
+
+// Error is a *sometimes* common datatype.
+type Error struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 // Reaction is a reaction on a message.

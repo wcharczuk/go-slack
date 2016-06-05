@@ -96,6 +96,8 @@ const (
 	EventHello Event = "hello"
 	// EventMessage is an enumerated event.
 	EventMessage Event = "message"
+	// EventMessageACK is a new enumerated event.
+	EventMessageACK Event = "message_ack"
 	// EventUserTyping is an enumerated event.
 	EventUserTyping Event = "user_typing"
 	// EventChannelMarked is an enumerated event.
@@ -459,6 +461,7 @@ func (rtm *Client) listenLoop() (err error) {
 	var messageBytes []byte
 	var bm BareMessage
 	var cm ChannelJoinedMessage
+	var ma MessageACK
 	var m Message
 
 	for {
@@ -477,7 +480,12 @@ func (rtm *Client) listenLoop() (err error) {
 				if err == nil {
 					rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
 				}
-			} else if bm.OK == nil { //not sure how else to tell if a message is a read receipt or not
+			} else if bm.OK != nil { //not sure how else to tell if a message is a read receipt or not
+				err = json.Unmarshal(messageBytes, &ma)
+				if err == nil {
+					rtm.dispatch(&Message{Type: EventMessageACK, ACK: &ma})
+				}
+			} else {
 				err = json.Unmarshal(messageBytes, &m)
 				if err == nil {
 					rtm.dispatch(&m)
