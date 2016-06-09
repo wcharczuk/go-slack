@@ -355,7 +355,6 @@ func (rtm *Client) dispatch(m *Message) {
 					}
 				}()
 
-				rtm.logf("firing listener for %s: %v", m.Type, listener)
 				listener(rtm, m)
 			}(listeners[index])
 		}
