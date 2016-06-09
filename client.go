@@ -44,6 +44,15 @@ import (
 const (
 	// DefaultPingInterval is the ping interval in seconds.
 	DefaultPingInterval = 30 * time.Second
+
+	// DefaultPingTimeout is the timeout for in flight pings.
+	DefaultPingTimeout = 30 * time.Second
+
+	// DefaultPingMaxFails is the number of ping failures before cycling.
+	DefaultPingMaxFails = 5
+
+	// DefaultPingMaxInFlight is the maximum number of pings in flight.
+	DefaultPingMaxInFlight = 5
 )
 
 // EventListener is a function that recieves messages from a client.
@@ -59,11 +68,14 @@ type EventListener func(client *Client, message *Message)
 // NewClient creates a Client with a given token.
 func NewClient(token string) *Client {
 	c := &Client{
-		Token:          token,
-		EventListeners: map[Event][]EventListener{},
-		ActiveChannels: []string{},
-		pingInFlight:   map[int64]time.Time{},
-		pingInterval:   DefaultPingInterval,
+		Token:           token,
+		EventListeners:  map[Event][]EventListener{},
+		ActiveChannels:  []string{},
+		pingTimeout:     DefaultPingTimeout,
+		pingMaxInFlight: DefaultPingMaxInFlight,
+		pingMaxFails:    DefaultPingMaxFails,
+		pingInFlight:    map[int64]time.Time{},
+		pingInterval:    DefaultPingInterval,
 	}
 	c.AddEventListener(EventChannelJoined, c.handleChannelJoined)
 	c.AddEventListener(EventChannelDeleted, c.handleChannelDeleted)
@@ -82,6 +94,10 @@ type Client struct {
 	activeLock       sync.Mutex
 	socketConnection *websocket.Conn
 
+	pingTimeout      time.Duration
+	pingMaxInFlight  int
+	pingMaxFails     int
+	pingFails        int
 	pingInFlight     map[int64]time.Time
 	pingInFlightLock sync.Mutex
 	pingInterval     time.Duration
@@ -91,15 +107,11 @@ type Client struct {
 // There can be multiple listeners to an event.
 // If an event is already being listened for, calling Listen will add a new listener to that event.
 func (rtm *Client) AddEventListener(event Event, handler EventListener) {
-	if listeners, handlesEvent := rtm.EventListeners[event]; handlesEvent {
-		rtm.EventListeners[event] = append(listeners, handler)
-	} else {
-		rtm.EventListeners[event] = []EventListener{handler}
-	}
+	rtm.EventListeners[event] = append(rtm.EventListeners[event], handler)
 }
 
-// RemoveEventListener removes all listeners for an event.
-func (rtm *Client) RemoveEventListener(event Event) {
+// RemoveEventListeners removes all listeners for an event.
+func (rtm *Client) RemoveEventListeners(event Event) {
 	delete(rtm.EventListeners, event)
 }
 
@@ -136,30 +148,14 @@ func (rtm *Client) Connect() (*Session, error) {
 		return nil, err
 	}
 
-	go func() { //fetch the (initial) channel list asyncronously
-		rtm.activeLock.Lock()
-		defer rtm.activeLock.Unlock()
+	// asynchronously fetch active channels.
+	go rtm.fetchActiveChannels()
 
-		channels, chanelsErr := rtm.ChannelsList(true) //excludeArchived == true
-		if chanelsErr != nil {
-			return
-		}
+	// ping slack every N seconds to make sure the connection is still active.
+	go rtm.pingLoop()
 
-		for x := 0; x < len(channels); x++ {
-			channel := channels[x]
-			if channel.IsMember && !channel.IsArchived {
-				rtm.ActiveChannels = append(rtm.ActiveChannels, channel.ID)
-			}
-		}
-	}()
-
-	go func() {
-		rtm.pingLoop()
-	}()
-
-	go func() {
-		rtm.listenLoop()
-	}()
+	// listen for messages.
+	go rtm.listenLoop()
 
 	return &res, nil
 }
@@ -227,24 +223,46 @@ func (rtm *Client) Ping() error {
 func (rtm *Client) pingLoop() error {
 	var err error
 	for rtm.socketConnection != nil {
+		err = rtm.doPing()
+		if err != nil {
+			break
+		}
+		time.Sleep(rtm.pingInterval)
+	}
+	return nil
+}
 
+func (rtm *Client) doPing() error {
+	rtm.pingInFlightLock.Lock()
+	defer rtm.pingInFlightLock.Unlock()
+
+	var err error
+	if len(rtm.pingInFlight) < rtm.pingMaxInFlight {
 		err = rtm.Ping()
 		if err != nil {
 			err = rtm.cycleConnection()
 			if err != nil {
-
-				break
+				return err
 			}
 		}
-
-		time.Sleep(rtm.pingInterval)
 	}
 
+	now := time.Now().UTC()
+	for _, v := range rtm.pingInFlight {
+		if now.Sub(v) >= rtm.pingTimeout {
+			err = rtm.cycleConnection()
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
 func (rtm *Client) handlePong(client *Client, message *Message) {
-
+	rtm.pingInFlightLock.Lock()
+	defer rtm.pingInFlightLock.Unlock()
+	delete(rtm.pingInFlight, message.ReplyTo)
 }
 
 func (rtm *Client) cycleConnection() error {
@@ -262,6 +280,9 @@ func (rtm *Client) cycleConnection() error {
 	if err != nil {
 		return err
 	}
+
+	rtm.pingInFlight = map[int64]time.Time{}
+	rtm.pingFails = 0
 
 	u, err := url.Parse(res.URL)
 	if err != nil {
@@ -356,6 +377,23 @@ func (rtm *Client) handleChannelLeft(client *Client, message *Message) {
 
 func (rtm *Client) handleChannelDeleted(client *Client, message *Message) {
 	rtm.removeActiveChannel(message.Channel)
+}
+
+func (rtm *Client) fetchActiveChannels() {
+	rtm.activeLock.Lock()
+	defer rtm.activeLock.Unlock()
+
+	channels, chanelsErr := rtm.ChannelsList(true) //excludeArchived == true
+	if chanelsErr != nil {
+		return
+	}
+
+	for x := 0; x < len(channels); x++ {
+		channel := channels[x]
+		if channel.IsMember && !channel.IsArchived {
+			rtm.ActiveChannels = append(rtm.ActiveChannels, channel.ID)
+		}
+	}
 }
 
 func (rtm *Client) removeActiveChannel(channelID string) {

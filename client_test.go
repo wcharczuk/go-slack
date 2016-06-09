@@ -12,3 +12,20 @@ func TestClientAddEventListener(t *testing.T) {
 	c.AddEventListener(EventBotAdded, func(c *Client, m *Message) {})
 	assert.NotEmpty(c.EventListeners[EventBotAdded])
 }
+
+func TestClientRemoveEventListener(t *testing.T) {
+	assert := assert.New(t)
+	c := NewClient(UUIDv4().ToShortString())
+	c.AddEventListener(EventBotAdded, func(c *Client, m *Message) {})
+	assert.NotEmpty(c.EventListeners[EventBotAdded])
+
+	c.RemoveEventListeners(EventBotAdded)
+	assert.Empty(c.EventListeners[EventBotAdded])
+}
+
+func TestClientPingLoop(t *testing.T) {
+	assert := assert.New(t)
+	c := NewClient(UUIDv4().ToShortString())
+	c.AddEventListener(EventBotAdded, func(c *Client, m *Message) {})
+	assert.NotEmpty(c.EventListeners[EventBotAdded])
+}
