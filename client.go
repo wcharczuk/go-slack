@@ -306,7 +306,7 @@ func (rtm *Client) cycleConnection() error {
 func (rtm *Client) listenLoop() (err error) {
 	defer func() {
 		if err != nil {
-			fmt.Printf("Slack :: Exiting Listen Loop, err: %#v\n", err)
+			rtm.logf("exiting Listen Loop, err: %#v", err)
 		}
 	}()
 	var mt MessageType
