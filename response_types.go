@@ -117,6 +117,7 @@ type MessageType struct {
 // It is a mutt of a bunch of different types, events, pings/pongs, acks, actual messages.
 // As such not all fields are necessary for ~sending~ messages.
 type Message struct {
+	OK        *bool      `json:"ok,omitempty"`
 	ID        int64      `json:"id"`
 	ReplyTo   int64      `json:"reply_to"`
 	Type      Event      `json:"type"`
@@ -141,12 +142,6 @@ type Reaction struct {
 	Name  string   `json:"name"`
 	Count int      `json:"count"`
 	Users []string `json:"users"`
-}
-
-// ChannelJoinedMessage is a final message type for the EventChannelJoined event type.
-type ChannelJoinedMessage struct {
-	Type    Event   `json:"type"`
-	Channel Channel `json:"channel,omitempty"`
 }
 
 // Self represents information about the bot itself.

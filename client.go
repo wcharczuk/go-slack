@@ -309,10 +309,8 @@ func (rtm *Client) listenLoop() (err error) {
 			fmt.Printf("Slack :: Exiting Listen Loop, err: %#v\n", err)
 		}
 	}()
-	var messageBytes []byte
 	var mt MessageType
-	var cm ChannelJoinedMessage
-	var m Message
+	var messageBytes []byte
 
 	for {
 		if rtm.socketConnection == nil {
@@ -323,21 +321,15 @@ func (rtm *Client) listenLoop() (err error) {
 			return err
 		}
 
-		rtm.logf("raw message: %s", messageBytes)
 		err = json.Unmarshal(messageBytes, &mt)
 		if err == nil {
-			switch mt.Type {
-			case EventChannelJoined:
-				{
-					err = json.Unmarshal(messageBytes, &cm)
-					if err == nil {
-						rtm.dispatch(&Message{Type: EventChannelJoined, Channel: cm.Channel.ID})
-					}
-				}
-			default:
-				{
-					err = json.Unmarshal(messageBytes, &m)
-					if err == nil {
+			if !IsEmpty(mt.Type) {
+				m := Message{}
+				err = json.Unmarshal(messageBytes, &m)
+				if err == nil {
+					if IsEmpty(mt.Type) && m.OK != nil { //special situation where acks don't have types and we have to sniff.
+						rtm.dispatch(&Message{Type: EventMessageACK, ReplyTo: m.ReplyTo, Timestamp: m.Timestamp, Text: m.Text})
+					} else {
 						rtm.dispatch(&m)
 					}
 				}
