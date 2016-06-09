@@ -71,6 +71,7 @@ func NewClient(token string) *Client {
 		Token:           token,
 		EventListeners:  map[Event][]EventListener{},
 		ActiveChannels:  []string{},
+		isDebug:         true,
 		pingTimeout:     DefaultPingTimeout,
 		pingMaxInFlight: DefaultPingMaxInFlight,
 		pingMaxFails:    DefaultPingMaxFails,
