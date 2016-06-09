@@ -116,6 +116,7 @@ func (rtm *Client) SetDebug(value bool) {
 func (rtm *Client) AddEventListener(event Event, handler EventListener) {
 	rtm.logf("adding event listener for %s: %v", event, handler)
 	rtm.EventListeners[event] = append(rtm.EventListeners[event], handler)
+	rtm.logf("listeners for %s: %v", event, rtm.EventListeners[event])
 }
 
 // RemoveEventListeners removes all listeners for an event.
