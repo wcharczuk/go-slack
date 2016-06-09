@@ -323,6 +323,7 @@ func (rtm *Client) listenLoop() (err error) {
 			return err
 		}
 
+		rtm.logf("raw message: %s", messageBytes)
 		err = json.Unmarshal(messageBytes, &mt)
 		if err == nil {
 			switch mt.Type {
