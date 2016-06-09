@@ -327,7 +327,7 @@ func (rtm *Client) listenLoop() (err error) {
 				m := Message{}
 				err = json.Unmarshal(messageBytes, &m)
 				if err == nil {
-					if IsEmpty(mt.Type) && m.OK != nil { //special situation where acks don't have types and we have to sniff.
+					if len(mt.Type) == 0 && m.OK != nil { //special situation where acks don't have types and we have to sniff.
 						rtm.dispatch(&Message{Type: EventMessageACK, ReplyTo: m.ReplyTo, Timestamp: m.Timestamp, Text: m.Text})
 					} else {
 						rtm.dispatch(&m)
