@@ -101,6 +101,13 @@ type Client struct {
 	pingInFlight     map[int64]time.Time
 	pingInFlightLock sync.Mutex
 	pingInterval     time.Duration
+
+	isDebug bool
+}
+
+// SetDebug turns on debug logging.
+func (rtm *Client) SetDebug(value bool) {
+	rtm.isDebug = value
 }
 
 // AddEventListener attaches a new Listener to the given event.
@@ -241,6 +248,7 @@ func (rtm *Client) doPing() error {
 	if len(rtm.pingInFlight) < rtm.pingMaxInFlight {
 		err = rtm.Ping()
 		if err != nil {
+			fmt.Printf("ping error, cycling connection: %v\n", err)
 			err = rtm.cycleConnection()
 			if err != nil {
 				return err
@@ -252,6 +260,7 @@ func (rtm *Client) doPing() error {
 	for _, v := range rtm.pingInFlight {
 		if now.Sub(v) >= rtm.pingTimeout {
 			err = rtm.cycleConnection()
+			fmt.Printf("ping error, cycling connection: %v\n", err)
 			if err != nil {
 				return err
 			}
@@ -338,15 +347,16 @@ func (rtm *Client) listenLoop() (err error) {
 func (rtm *Client) dispatch(m *Message) {
 	var listener EventListener
 	if listeners, hasListeners := rtm.EventListeners[m.Type]; hasListeners {
-		for x := 0; x < len(listeners); x++ {
-			listener = listeners[x]
+		for index := range listeners {
+			listener = listeners[index]
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						fmt.Printf("go-slack: dispatch() fatal: %#v\n", r)
+						rtm.logf("go-slack: dispatch() fatal: %#v\n", r)
 					}
 				}()
 
+				rtm.logf("firing listener for %s: %v", m.Type, listener)
 				listener(rtm, m)
 			}()
 		}
@@ -409,4 +419,17 @@ func (rtm *Client) removeActiveChannel(channelID string) {
 		}
 	}
 	rtm.ActiveChannels = currentChannels
+}
+
+func (rtm *Client) log(args ...interface{}) {
+	if rtm.isDebug {
+		fmt.PrintLn(args...)
+	}
+}
+
+func (rtm *Client) logf(format string, args ...interface{}) {
+	if rtm.isDebug {
+		msg := fmt.Sprintf(format, args...)
+		fmt.Printf("%s\n", msg)
+	}
 }
