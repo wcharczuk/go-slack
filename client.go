@@ -346,7 +346,6 @@ func (rtm *Client) listenLoop() (err error) {
 }
 
 func (rtm *Client) dispatch(m *Message) {
-	var listener EventListener
 	if listeners, hasListeners := rtm.EventListeners[m.Type]; hasListeners {
 		for index := range listeners {
 			go func(listener EventListener) {
