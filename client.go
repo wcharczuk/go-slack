@@ -212,6 +212,7 @@ func (rtm *Client) Ping() error {
 	}
 
 	p := &Message{ID: time.Now().UTC().UnixNano(), Type: "ping"}
+	rtm.dispatch(p)
 	rtm.pingInFlight[p.ID] = time.Now().UTC()
 	return rtm.socketConnection.WriteJSON(p)
 }
@@ -342,7 +343,7 @@ func (rtm *Client) dispatch(m *Message) {
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						//log the panic somewhere.
+						fmt.Printf("go-slack: dispatch() fatal: %#v\n", r)
 					}
 				}()
 
