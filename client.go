@@ -423,7 +423,7 @@ func (rtm *Client) removeActiveChannel(channelID string) {
 
 func (rtm *Client) log(args ...interface{}) {
 	if rtm.isDebug {
-		fmt.PrintLn(args...)
+		fmt.Println(args...)
 	}
 }
 
