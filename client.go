@@ -114,6 +114,7 @@ func (rtm *Client) SetDebug(value bool) {
 // There can be multiple listeners to an event.
 // If an event is already being listened for, calling Listen will add a new listener to that event.
 func (rtm *Client) AddEventListener(event Event, handler EventListener) {
+	rtm.logf("adding event listener for %s: %v", event, handler)
 	rtm.EventListeners[event] = append(rtm.EventListeners[event], handler)
 }
 
