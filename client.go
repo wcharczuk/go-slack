@@ -115,9 +115,7 @@ func (rtm *Client) SetDebug(value bool) {
 // There can be multiple listeners to an event.
 // If an event is already being listened for, calling Listen will add a new listener to that event.
 func (rtm *Client) AddEventListener(event Event, handler EventListener) {
-	rtm.logf("adding event listener for %s: %v", event, handler)
 	rtm.EventListeners[event] = append(rtm.EventListeners[event], handler)
-	rtm.logf("listeners for %s: %v", event, rtm.EventListeners[event])
 }
 
 // RemoveEventListeners removes all listeners for an event.
@@ -351,8 +349,7 @@ func (rtm *Client) dispatch(m *Message) {
 	var listener EventListener
 	if listeners, hasListeners := rtm.EventListeners[m.Type]; hasListeners {
 		for index := range listeners {
-			listener = listeners[index]
-			go func() {
+			go func(listener EventListener) {
 				defer func() {
 					if r := recover(); r != nil {
 						rtm.logf("go-slack: dispatch() fatal: %#v\n", r)
@@ -361,7 +358,7 @@ func (rtm *Client) dispatch(m *Message) {
 
 				rtm.logf("firing listener for %s: %v", m.Type, listener)
 				listener(rtm, m)
-			}()
+			}(listeners[index])
 		}
 	}
 }
