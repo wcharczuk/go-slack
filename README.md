@@ -12,11 +12,11 @@ import "github.com/wcharczuk/go-slack"
 ...
 
 client := slack.Connect(os.Getenv("SLACK_TOKEN"))
-client.Listen(slack.EventHello, func(m *slack.Message, c *slack.Client) {
+client.AddEventListener(slack.EventHello, func(c *slack.Client, m *slack.Message) {
 	fmt.Println("connected")
 })
-client.Listen(slack.EventMessage, func(m *slack.Message, c *slack.Client) {
-	fmt.Prinln("message received!")
+client.AddEventListener(slack.EventMessage, func(c *slack.Client, m *slack.Message) {
+	fmt.Println("message received!")
 })
 session, err := client.Start() //session has the current users list and channel list
 if err != nil {
