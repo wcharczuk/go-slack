@@ -146,7 +146,7 @@ func (rtm *Client) Connect() (*Session, error) {
 	}
 
 	if meta.StatusCode > http.StatusOK {
-		return exception.New("Non-200 Status from Slack, aborting.")
+		return nil, exception.New("Non-200 Status from Slack, aborting.")
 	}
 
 	//start socket connection
