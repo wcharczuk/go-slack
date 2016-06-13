@@ -78,6 +78,7 @@ func NewClient(token string) *Client {
 		pingMaxFails:    DefaultPingMaxFails,
 		pingInFlight:    map[int64]time.Time{},
 		pingInterval:    DefaultPingInterval,
+		connected:       false,
 	}
 	c.AddEventListener(EventChannelJoined, c.handleChannelJoined)
 	c.AddEventListener(EventChannelDeleted, c.handleChannelDeleted)
@@ -91,10 +92,14 @@ func NewClient(token string) *Client {
 type Client struct {
 	Token          string
 	EventListeners map[Event][]EventListener
+
+	activeLock     sync.Mutex
 	ActiveChannels []string
 
-	activeLock       sync.Mutex
+	socketLock       sync.RWMutex
 	socketConnection *websocket.Conn
+
+	connected bool
 
 	pingTimeout      time.Duration
 	pingMaxInFlight  int
@@ -126,6 +131,9 @@ func (rtm *Client) RemoveEventListeners(event Event) {
 
 // Connect be4gins a session with Slack.
 func (rtm *Client) Connect() (*Session, error) {
+	rtm.socketLock.Lock()
+	defer rtm.socketLock.Unlock()
+
 	res := Session{}
 	meta, err := NewExternalRequest().
 		AsPost().
@@ -161,6 +169,8 @@ func (rtm *Client) Connect() (*Session, error) {
 		return nil, err
 	}
 
+	rtm.connected = true
+
 	// asynchronously fetch active channels.
 	go rtm.fetchActiveChannels()
 
@@ -175,6 +185,9 @@ func (rtm *Client) Connect() (*Session, error) {
 
 // Stop closes the connection with Slack.
 func (rtm *Client) Stop() error {
+	rtm.socketLock.Lock()
+	defer rtm.socketLock.Unlock()
+
 	if rtm.socketConnection == nil {
 		return nil
 	}
@@ -185,11 +198,15 @@ func (rtm *Client) Stop() error {
 	}
 	rtm.socketConnection.Close()
 	rtm.socketConnection = nil
+	rtm.connected = false
 	return nil
 }
 
 // SendMessage sends a basic message over the open web socket connection to slack.
 func (rtm *Client) SendMessage(m *Message) error {
+	rtm.socketLock.RLock()
+	defer rtm.socketLock.RUnlock()
+
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
@@ -199,6 +216,9 @@ func (rtm *Client) SendMessage(m *Message) error {
 
 // Say sends a basic message to a given channelID.
 func (rtm *Client) Say(channelID string, messageComponents ...interface{}) error {
+	rtm.socketLock.RLock()
+	defer rtm.socketLock.RUnlock()
+
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
@@ -209,6 +229,9 @@ func (rtm *Client) Say(channelID string, messageComponents ...interface{}) error
 
 // Sayf is an overload that uses Printf style replacements for a basic message to a given channelID.
 func (rtm *Client) Sayf(channelID, format string, messageComponents ...interface{}) error {
+	rtm.socketLock.RLock()
+	defer rtm.socketLock.RUnlock()
+
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
@@ -220,6 +243,9 @@ func (rtm *Client) Sayf(channelID, format string, messageComponents ...interface
 // Ping sends a special type of "ping" message to Slack to remind it to keep the connection open.
 // Currently unused internally by Slack.
 func (rtm *Client) Ping() error {
+	rtm.socketLock.RLock()
+	defer rtm.socketLock.RUnlock()
+
 	if rtm.socketConnection == nil {
 		return exception.New("Connection is closed.")
 	}
@@ -234,16 +260,15 @@ func (rtm *Client) Ping() error {
 // INTERNAL METHODS
 //--------------------------------------------------------------------------------
 
-func (rtm *Client) pingLoop() error {
+func (rtm *Client) pingLoop() {
 	var err error
-	for rtm.socketConnection != nil {
+	for rtm.connected {
 		time.Sleep(rtm.pingInterval)
 		err = rtm.doPing()
 		if err != nil {
-			break
+			rtm.logf("go-slack :: pingLook() :: error => %v", err)
 		}
 	}
-	return nil
 }
 
 func (rtm *Client) doPing() error {
@@ -254,30 +279,38 @@ func (rtm *Client) doPing() error {
 	if len(rtm.pingInFlight) < rtm.pingMaxInFlight {
 		err = rtm.Ping()
 		if err != nil {
-			rtm.logf("ping error, cycling connection: %v\n", err)
+			rtm.logf("doPing() :: ping() :: error => %v\n", err)
 			err = rtm.cycleConnection()
 			if err != nil {
-				rtm.logf("error cycling connection: %v\n", err)
+				rtm.logf("doPing() :: cycleConnection() :: error => %v\n", err)
 			}
 		}
 	}
 
 	now := time.Now().UTC()
-	for _, v := range rtm.pingInFlight {
-		if now.Sub(v) >= rtm.pingTimeout {
-			err = rtm.cycleConnection()
-			if err != nil {
-				rtm.logf("error cycling connection: %v\n", err)
-			}
-		}
-	}
-
+	outstandingPings := 0
 	for k, v := range rtm.pingInFlight {
 		if now.Sub(v) >= rtm.pingTimeout {
 			delete(rtm.pingInFlight, k)
+			outstandingPings++
 		}
 	}
+
+	if outstandingPings > rtm.pingMaxFails {
+		err = rtm.cycleConnection()
+		if err != nil {
+			rtm.logf("doPing() :: cycleConnection() :: error  => %v\n", err)
+		}
+	}
+
 	return nil
+}
+
+func (rtm *Client) resetPingMetadata() {
+	rtm.pingInFlightLock.Lock()
+	defer rtm.pingInFlightLock.Unlock()
+
+	rtm.pingInFlight = map[int64]time.Time{}
 }
 
 func (rtm *Client) handlePong(client *Client, message *Message) {
@@ -287,6 +320,9 @@ func (rtm *Client) handlePong(client *Client, message *Message) {
 }
 
 func (rtm *Client) cycleConnection() error {
+	rtm.socketLock.Lock()
+	defer rtm.socketLock.Unlock()
+
 	res := Session{}
 	meta, err := NewExternalRequest().
 		AsPost().
@@ -306,8 +342,7 @@ func (rtm *Client) cycleConnection() error {
 		return exception.New("Non-200 Status from Slack, aborting.")
 	}
 
-	rtm.pingInFlight = map[int64]time.Time{}
-	rtm.pingFails = 0
+	rtm.resetPingMetadata()
 
 	u, err := url.Parse(res.URL)
 	if err != nil {
@@ -317,22 +352,15 @@ func (rtm *Client) cycleConnection() error {
 	return err
 }
 
-func (rtm *Client) listenLoop() (err error) {
-	defer func() {
-		if err != nil {
-			rtm.logf("exiting Listen Loop, err: %#v", err)
-		}
-	}()
+func (rtm *Client) listenLoop() {
 	var mt MessageType
 	var messageBytes []byte
+	var err error
 
-	for {
-		if rtm.socketConnection == nil {
-			return nil
-		}
+	for rtm.connected {
 		_, messageBytes, err = rtm.socketConnection.ReadMessage()
 		if err != nil {
-			return err
+			rtm.logf("listenLoop() :: error => %v", err)
 		}
 
 		err = json.Unmarshal(messageBytes, &mt)
@@ -345,7 +373,11 @@ func (rtm *Client) listenLoop() (err error) {
 				} else {
 					rtm.dispatch(&m)
 				}
+			} else {
+				rtm.logf("listenLoop() :: error => %v", err)
 			}
+		} else {
+			rtm.logf("listenLoop() :: error => %v", err)
 		}
 	}
 }
@@ -433,6 +465,6 @@ func (rtm *Client) log(args ...interface{}) {
 func (rtm *Client) logf(format string, args ...interface{}) {
 	if rtm.isDebug {
 		msg := fmt.Sprintf(format, args...)
-		fmt.Printf("%s\n", msg)
+		fmt.Printf("go-slack :: %s\n", msg)
 	}
 }
