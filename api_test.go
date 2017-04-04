@@ -5,7 +5,16 @@ import (
 	"testing"
 
 	"github.com/blendlabs/go-assert"
+	request "github.com/blendlabs/go-request"
 )
+
+func ClearMockedResponses() {
+	request.ClearMockedResponses()
+}
+
+func MockResponseFromFile(verb, url string, status int, file string) {
+	request.MockResponseFromFile(verb, url, status, file)
+}
 
 func getSlackToken(a *assert.Assertions) string {
 	token := os.Getenv("SLACK_TOKEN")

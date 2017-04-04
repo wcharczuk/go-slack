@@ -39,15 +39,17 @@ func (t *Timestamp) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON returns the object as json.
 func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return []byte(t.String()), nil
 }
 
-// DateTime returns a regular golang time.Time for the Timestamp instance.
+// Time returns a regular golang time.Time for the Timestamp instance.
 func (t Timestamp) Time() time.Time {
 	return t.time
 }
 
+// UUID returns the uuid.
 func (t Timestamp) UUID() string {
 	return t.uuid
 }

@@ -19,7 +19,7 @@ func (rtm *Client) AuthTest() (*AuthTestResponse, error) {
 		WithHost(APIEndpoint).
 		WithPath("api/auth.test").
 		WithPostData("token", rtm.Token).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (rtm *Client) ChannelsHistory(channelID string, latest, oldest *time.Time, 
 		req = req.WithPostData("oldest", Timestamp{time: *latest}.String())
 	}
 
-	err := req.FetchJSONToObject(&res)
+	err := req.JSON(&res)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (rtm *Client) ChannelsInfo(channelID string) (*Channel, error) {
 		WithPath("api/channels.info").
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (rtm *Client) ChannelsList(excludeArchived bool) ([]Channel, error) {
 		req = req.WithPostData("exclude_archived", "1")
 	}
 
-	err := req.FetchJSONToObject(&res)
+	err := req.JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ func (rtm *Client) ChannelsMark(channelID string, ts Timestamp) error {
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
 		WithPostData("ts", ts.String()).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return err
@@ -182,7 +182,7 @@ func (rtm *Client) ChannelsSetPurpose(channelID, purpose string) error {
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
 		WithPostData("purpose", purpose).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func (rtm *Client) ChannelsSetTopic(channelID, topic string) error {
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
 		WithPostData("topic", topic).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (rtm *Client) ChatDelete(channelID string, ts Timestamp) error {
 		WithPostData("token", rtm.Token).
 		WithPostData("channel", channelID).
 		WithPostData("ts", ts.String()).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return err
@@ -264,7 +264,7 @@ func (rtm *Client) ChatPostMessage(m *ChatMessage) (*ChatMessageResponse, error)
 		WithPath("api/chat.postMessage").
 		WithPostData("token", rtm.Token).
 		WithPostDataFromObject(m).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -292,7 +292,7 @@ func (rtm *Client) ChatUpdate(ts Timestamp, m *ChatMessage) (*ChatMessageRespons
 		WithPostData("token", rtm.Token).
 		WithPostData("ts", ts.String()).
 		WithPostDataFromObject(m).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -318,7 +318,7 @@ func (rtm *Client) EmojiList() (map[string]string, error) {
 		WithHost(APIEndpoint).
 		WithPath("api/emoji.list").
 		WithPostData("token", rtm.Token).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -356,7 +356,7 @@ func (rtm *Client) ReactionsAdd(name string, fileID, fileCommentID, channelID *s
 		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	err := req.FetchJSONToObject(&res)
+	err := req.JSON(&res)
 
 	if err != nil {
 		return err
@@ -393,7 +393,7 @@ func (rtm *Client) ReactionsGet(fileID, fileCommentID, channelID *string, ts *Ti
 		return nil, exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	err := req.FetchJSONToObject(&res)
+	err := req.JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -431,7 +431,7 @@ func (rtm *Client) ReactionsRemove(name string, fileID, fileCommentID, channelID
 		return exception.New("`fileId` or `fileCommentID` or (`channelID` and `ts`) must be not be nil.")
 	}
 
-	err := req.FetchJSONToObject(&res)
+	err := req.JSON(&res)
 
 	if err != nil {
 		return err
@@ -456,7 +456,7 @@ func (rtm *Client) UsersList() ([]User, error) {
 		WithHost(APIEndpoint).
 		WithPath("api/users.list").
 		WithPostData("token", rtm.Token).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err
@@ -479,7 +479,7 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 		WithPath("api/users.info").
 		WithPostData("token", rtm.Token).
 		WithPostData("user", userID).
-		FetchJSONToObject(&res)
+		JSON(&res)
 
 	if err != nil {
 		return nil, err

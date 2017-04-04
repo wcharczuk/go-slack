@@ -143,7 +143,7 @@ func (rtm *Client) Connect() (*Session, error) {
 		WithPostData("token", rtm.Token).
 		WithPostData("no_unreads", "false").
 		WithPostData("mpim_aware", "true").
-		FetchJSONToObjectWithMeta(&res)
+		JSONWithMeta(&res)
 
 	if err != nil {
 		return nil, err
@@ -332,7 +332,7 @@ func (rtm *Client) cycleConnection() error {
 		WithPostData("token", rtm.Token).
 		WithPostData("no_unreads", "true").
 		WithPostData("mpim_aware", "true").
-		FetchJSONToObjectWithMeta(&res)
+		JSONWithMeta(&res)
 
 	if err != nil {
 		return err
