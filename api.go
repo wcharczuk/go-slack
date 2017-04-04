@@ -491,3 +491,27 @@ func (rtm *Client) UsersInfo(userID string) (*User, error) {
 
 	return res.User, nil
 }
+
+// InviteUser invites a user to a channel.
+func (rtm *Client) InviteUser(channelID, userID string) (*Channel, error) {
+	res := channelsInfoResponse{}
+	err := NewExternalRequest().
+		AsPost().
+		WithScheme(APIScheme).
+		WithHost(APIEndpoint).
+		WithPath("api/channels.invite").
+		WithPostData("token", rtm.Token).
+		WithPostData("channel", channelID).
+		WithPostData("user", userID).
+		JSON(&res)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !IsEmpty(res.Error) {
+		return nil, exception.New(res.Error)
+	}
+
+	return res.Channel, nil
+}
