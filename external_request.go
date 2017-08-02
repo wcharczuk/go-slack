@@ -4,5 +4,5 @@ import "github.com/blendlabs/go-request"
 
 // NewExternalRequest Creates a new external request
 func NewExternalRequest() *request.Request {
-	return request.New().WithMockedResponse(request.MockedResponseInjector)
+	return request.New().WithMockProvider(request.MockedResponseInjector)
 }
